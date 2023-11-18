@@ -1,6 +1,6 @@
 import Data.Map
 
-type Object = Map Expression Value
+type Object = Map PrimitiveValue PrimitiveValue
 
 data Expression
   = Val Value -- literal values
