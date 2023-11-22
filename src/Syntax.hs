@@ -5,16 +5,17 @@ import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
 
 type Object = Map PrimitiveValue PrimitiveValue
+type Name = String
+type FunctionArg = (Name, Type)
 
 data Statement
   = Assign Var Expression -- x = e -- handles var, let, const
   | If Expression Block Block -- if e then s1 else s2 end
   | While Expression Block -- while e do s end
   | Empty -- ';'
-  -- for loop ?
-  deriving (Eq, Show)
-
-type Name = String
+  | For Statement Expression Expression Block -- for (s1; e1; e2) {s2}
+  | Return Expression -- return e
+  | FunctionDef Name [FunctionArg] Type Block -- function f(x1, ..., xn) s
 
 data Var
   = Name Name -- x, global variable
@@ -23,7 +24,6 @@ data Var
   deriving (Eq, Show)
 
 newtype Block = Block [Statement] -- s1 ... sn
-  deriving (Eq, Show)
 
 instance Semigroup Block where
   Block s1 <> Block s2 = Block (s1 <> s2)
@@ -35,18 +35,32 @@ data Expression
   = Val Value -- literal values
   | Op1 Uop Expression -- unary operators
   | Op2 Expression Bop Expression -- binary operators
+  | Call [Expression] -- function calls
   deriving (Eq, Show)
 
 data PrimitiveValue
   = BoolVal Bool -- https://flow.org/en/docs/types/literals/
   | StringVal String
   | NumberVal Double
-  | NullVal
-  | UndefinedVal
-  | EmptyVal -- https://flow.org/en/docs/types/empty/
-  | AnyVal -- https://flow.org/en/docs/types/any/
   | ObjectVal Object -- https://flow.org/en/docs/types/objects/
   deriving (Eq, Show)
+
+data PrimitiveType
+  = BoolType
+  | StringType
+  | NumberType
+  | NullType
+  | UndefinedType
+  | EmptyType -- https://flow.org/en/docs/types/empty/
+  | AnyType -- https://flow.org/en/docs/types/any/
+  | ObjectType
+  | VoidType -- only used for function return types
+  deriving (Eq, Show)
+
+data Type
+  = PrimitiveType PrimitiveType
+  | EitherType (Either PrimitiveType PrimitiveType)
+  | MaybeType (Maybe PrimitiveType)
 
 data Value
   = PrimitiveVal PrimitiveValue
