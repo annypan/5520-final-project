@@ -6,6 +6,31 @@ import Text.PrettyPrint qualified as PP
 
 type Object = Map PrimitiveValue PrimitiveValue
 
+data Statement
+  = Assign Var Expression -- x = e -- handles var, let, const
+  | If Expression Block Block -- if e then s1 else s2 end
+  | While Expression Block -- while e do s end
+  | Empty -- ';'
+  -- for loop ?
+  deriving (Eq, Show)
+
+type Name = String
+
+data Var
+  = Name Name -- x, global variable
+  | Dot Expression Name -- t.x, access table using string key
+  | Proj Expression Expression -- t[1], access table table using any type of key
+  deriving (Eq, Show)
+
+newtype Block = Block [Statement] -- s1 ... sn
+  deriving (Eq, Show)
+
+instance Semigroup Block where
+  Block s1 <> Block s2 = Block (s1 <> s2)
+
+instance Monoid Block where
+  mempty = Block []
+
 data Expression
   = Val Value -- literal values
   | Op1 Uop Expression -- unary operators
@@ -58,3 +83,5 @@ class PP a where
 -- rules, with generous use of indentation and newlines.
 pretty :: (PP a) => a -> String
 pretty = PP.render . pp
+
+-- TODO: Define a pretty printer for each type
