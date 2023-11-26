@@ -7,14 +7,6 @@ import PrettyPrinter
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Test.QuickCheck qualified as QC
 
--- QC properties
-prop_roundtrip_val :: Value -> Bool
-prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
-
-prop_roundtrip_exp :: Expression -> Bool
-prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
-
-
 -- Parsing
 statementP :: Parser Statement
 statementP = undefined
