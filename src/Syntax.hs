@@ -1,10 +1,8 @@
 module Syntax where
 
 import Data.Map
-import Text.PrettyPrint (Doc, (<+>))
-import Text.PrettyPrint qualified as PP
 
-type Object = Map PrimitiveValue PrimitiveValue
+type Object = Map Value Value
 type Name = String
 type FunctionArg = (Name, Type)
 
@@ -33,16 +31,19 @@ instance Monoid Block where
 
 data Expression
   = Val Value -- literal values
+  | Var Var -- variables
   | Op1 Uop Expression -- unary operators
   | Op2 Expression Bop Expression -- binary operators
   | Call [Expression] -- function calls
   deriving (Eq, Show)
 
-data PrimitiveValue
+data Value
   = BoolVal Bool -- https://flow.org/en/docs/types/literals/
   | StringVal String
-  | NumberVal Double
+  | NumberVal Int
   | ObjectVal Object -- https://flow.org/en/docs/types/objects/
+  | UndefinedVal
+  | NullVal
   deriving (Eq, Show)
 
 data PrimitiveType
@@ -59,14 +60,8 @@ data PrimitiveType
 
 data Type
   = PrimitiveType PrimitiveType
-  | EitherType (Either PrimitiveType PrimitiveType)
-  | MaybeType (Maybe PrimitiveType)
-
-data Value
-  = PrimitiveVal PrimitiveValue
-  | EitherVal (Either PrimitiveValue PrimitiveValue)
-  | MaybeVal (Maybe PrimitiveValue) -- https://flow.org/en/docs/types/maybe/
-  deriving (Eq, Show)
+  | UnionType [PrimitiveType]
+  | MaybeType PrimitiveType
 
 data Uop
   = Neg
@@ -89,13 +84,3 @@ data Bop
   | Concat
   | In -- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/in
   deriving (Eq, Show, Enum, Bounded)
-
-class PP a where
-  pp :: a -> Doc
-
--- | Default operation for the pretty printer. Displays using standard formatting
--- rules, with generous use of indentation and newlines.
-pretty :: (PP a) => a -> String
-pretty = PP.render . pp
-
--- TODO: Define a pretty printer for each type
