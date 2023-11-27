@@ -98,4 +98,4 @@ instance PP Expression where
   pp (Var var) = pp var
   pp (Op1 uop e) = pp uop <+> pp e
   pp (Op2 e1 bop e2) = pp e1 <+> pp bop <+> pp e2
-  pp (Call es) = PP.text "call" <+> PP.hsep (PP.punctuate PP.comma (fmap pp es))
+  pp (Call fn es) = pp fn <> PP.parens (PP.hsep (PP.punctuate PP.comma (fmap pp es)))

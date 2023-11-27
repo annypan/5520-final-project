@@ -1,9 +1,12 @@
 module Syntax where
 
 import Data.Map
+import Test.QuickCheck (Arbitrary (..), Gen)
+import qualified Test.QuickCheck as QC
 
 type Object = Map Value Value
 type Name = String
+type FuncName = String
 type FunctionArg = (Name, Type)
 
 data Statement
@@ -13,7 +16,7 @@ data Statement
   | Empty -- ';'
   | For Statement Expression Expression Block -- for (s1; e1; e2) {s2}
   | Return Expression -- return e
-  | FunctionDef Name [FunctionArg] Type Block -- function f(x1, ..., xn) s
+  | FunctionDef FuncName [FunctionArg] Type Block -- function f(x1, ..., xn) s
 
 data Var
   = Name Name -- x, global variable
@@ -34,7 +37,7 @@ data Expression
   | Var Var -- variables
   | Op1 Uop Expression -- unary operators
   | Op2 Expression Bop Expression -- binary operators
-  | Call [Expression] -- function calls
+  | Call FuncName [Expression] -- function calls
   deriving (Eq, Show)
 
 data Value
@@ -84,3 +87,46 @@ data Bop
   | Concat
   | In -- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/in
   deriving (Eq, Show, Enum, Bounded)
+
+instance Arbitrary Value where
+  arbitrary = 
+    QC.oneof
+      [ BoolVal <$> arbitrary
+      , StringVal <$> arbitrary
+      , NumberVal <$> arbitrary
+      -- , ObjectVal <$> arbitrary
+      , pure UndefinedVal
+      , pure NullVal
+      ]
+  
+  shrink (BoolVal b) = BoolVal <$> shrink b
+  shrink (StringVal s) = StringVal <$> shrink s
+  shrink (NumberVal n) = NumberVal <$> shrink n
+  -- shrink (ObjectVal o) = ObjectVal <$> shrink o
+  shrink _ = []
+
+instance Arbitrary PrimitiveType where
+  arbitrary = 
+    QC.oneof
+      [ pure BoolType
+      , pure StringType
+      , pure NumberType
+      , pure NullType
+      , pure UndefinedType
+      , pure EmptyType
+      , pure AnyType
+      , pure ObjectType
+      , pure VoidType
+      ]
+  shrink = const []
+
+instance Arbitrary Type where
+  arbitrary = 
+    QC.oneof
+      [ PrimitiveType <$> arbitrary
+      , UnionType <$> arbitrary
+      , MaybeType <$> arbitrary
+      ]
+  shrink (PrimitiveType t) = []
+  shrink (UnionType ts) = UnionType <$> shrink ts
+  shrink (MaybeType t) = MaybeType <$> shrink t

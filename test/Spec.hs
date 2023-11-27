@@ -9,6 +9,10 @@ prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
 prop_roundtrip_exp :: Expression -> Bool
 prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
 
+-- if a value is a primitive type, then it can be used as a composite type; vice versa
+prop_prim_as_composite_type :: Value -> PrimitiveType -> Bool
+prop_prim_as_composite_type v pt = 
+  doesValueMatchPrimitiveType v pt == doesValueMatchType v (PrimitiveType pt)
 
 main :: IO ()
 main = do
@@ -18,5 +22,5 @@ main = do
   QC.quickCheck prop_roundtrip_val
   putStrLn "roundtrip_exp"
   QC.quickCheck prop_roundtrip_exp
-  putStrLn "roundtrip_prim"
-  QC.quickCheck prop_roundtrip_prim
+  putStrLn "prop_prim_as_composite_type"
+  QC.quickCheck prop_prim_as_composite_type
