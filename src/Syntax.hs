@@ -24,6 +24,12 @@ data Var
   | Proj Expression Expression -- t[1], access table table using any type of key
   deriving (Eq, Show)
 
+data CheckResult
+  = Success
+  | Failure
+  | Unknown
+  deriving (Eq, Show, Ord)
+
 newtype Block = Block [Statement] -- s1 ... sn
 
 instance Semigroup Block where
@@ -130,3 +136,40 @@ instance Arbitrary Type where
   shrink (PrimitiveType t) = []
   shrink (UnionType ts) = UnionType <$> shrink ts
   shrink (MaybeType t) = MaybeType <$> shrink t
+
+-- genName :: Gen Name
+-- genName = QC.elements ["_", "_G", "x", "X", "y", "x0", "X0", "xy", "XY", "_x"]
+
+-- genVar :: Int -> Gen Var
+-- genVar 0 = Name <$> genName
+-- genVar n =
+--   QC.frequency
+--     [ (1, Name <$> genName),
+--       (n, Dot <$> genExp n' <*> genName),
+--       (n, Proj <$> genExp n' <*> genExp n')
+--     ]
+--   where
+--     n' = n `div` 2
+
+-- instance Arbitrary Var where
+--   arbitrary = QC.sized genVar
+--   shrink (Name n) = []
+--   shrink (Dot e n) = [Dot e' n | e' <- shrink e]
+--   shrink (Proj e1 e2) =
+--     [Proj e1' e2 | e1' <- shrink e1]
+--       ++ [Proj e1 e2' | e2' <- shrink e2]
+
+-- instance Arbitrary Expression where
+--   arbitrary = 
+--     QC.oneof
+--       [ Val <$> arbitrary
+--       , Var <$> arbitrary
+--       , Op1 <$> arbitrary <*> arbitrary
+--       , Op2 <$> arbitrary <*> arbitrary <*> arbitrary
+--       , Call <$> arbitrary <*> arbitrary
+--       ]
+--   shrink (Val v) = Val <$> shrink v
+--   shrink (Var v) = Var <$> shrink v
+--   shrink (Op1 uop e) = Op1 <$> pure uop <*> shrink e
+--   shrink (Op2 e1 bop e2) = Op2 <$> shrink e1 <*> pure bop <*> shrink e2
+--   shrink (Call fn es) = Call <$> shrink fn <*> shrink es

@@ -41,6 +41,12 @@ library
       common-stanza
   exposed-modules:
       Lib
+      Syntax
+      Parser
+      FlowParser
+      PrettyPrinter
+      TypeChecker
+      State
   hs-source-dirs:
       src
 
