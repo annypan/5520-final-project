@@ -20,8 +20,8 @@ data Statement
 
 data Var
   = Name Name -- x, global variable
-  | Dot Expression Name -- t.x, access table using string key
-  | Proj Expression Expression -- t[1], access table table using any type of key
+  | Dot Expression Name -- t.x, access the object property x
+  | Proj Expression Expression -- t[1], access the object property 1
   deriving (Eq, Show)
 
 data CheckResult
@@ -53,7 +53,7 @@ data Value
   | ObjectVal Object -- https://flow.org/en/docs/types/objects/
   | UndefinedVal
   | NullVal
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data PrimitiveType
   = BoolType
@@ -65,12 +65,13 @@ data PrimitiveType
   | AnyType -- https://flow.org/en/docs/types/any/
   | ObjectType
   | VoidType -- only used for function return types
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data Type
   = PrimitiveType PrimitiveType
   | UnionType [PrimitiveType]
   | MaybeType PrimitiveType
+  deriving (Eq, Show, Ord)
 
 data Uop
   = Neg
