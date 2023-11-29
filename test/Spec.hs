@@ -28,6 +28,18 @@ prop_all_value_match_any_type v = doesValueMatchType v (PrimitiveType AnyType) =
 prop_no_value_match_empty_type :: Value -> Bool
 prop_no_value_match_empty_type v = doesValueMatchType v (PrimitiveType EmptyType) == Failure
 
+-- Any type can be used as AnyType
+prop_all_type_match_any_type :: Type -> Bool
+prop_all_type_match_any_type t = canBeUsedAsType t (PrimitiveType AnyType)
+
+-- A primitive type can be used as a MaybeType of the same type
+prop_type_as_maybe_type :: PrimitiveType -> Bool
+prop_type_as_maybe_type t = canBeUsedAsType (PrimitiveType t) (MaybeType t)
+
+-- A type can be used as itself
+prop_type_as_itself :: Type -> Bool
+prop_type_as_itself t = canBeUsedAsType t t
+
 -- unit tests
 test_unit_all :: IO Counts
 test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType]
@@ -45,7 +57,6 @@ testDoesValueMatchPrimitiveType =
             "AnyVal matches AnyType" ~: doesValueMatchPrimitiveType (BoolVal True) AnyType ~?= True,
             "BoolVal does not match StringType" ~: doesValueMatchPrimitiveType (BoolVal True) StringType ~?= False,
             "StringVal does not match NumberType" ~: doesValueMatchPrimitiveType (StringVal "hello") NumberType ~?= False,
-            "NumberVal does not match BoolType" ~: doesValueMatchPrimitiveType (NumberVal 1) BoolType ~?= False,
             "ObjectVal does not match UndefinedType" ~: doesValueMatchPrimitiveType (ObjectVal Map.empty) UndefinedType ~?= False,
             "UndefinedVal does not match NullType" ~: doesValueMatchPrimitiveType UndefinedVal NullType ~?= False,
             "NullVal does not match BoolType" ~: doesValueMatchPrimitiveType NullVal BoolType ~?= False,
@@ -57,7 +68,11 @@ testCanBeUsedAsType =
     TestList
         [
             "BoolType can be used as BoolType" ~: canBeUsedAsType (PrimitiveType BoolType) (PrimitiveType BoolType) ~?= True,
-            "ObjectType can be used as BoolType" ~: canBeUsedAsType (PrimitiveType ObjectType) (PrimitiveType BoolType) ~?= True
+            "ObjectType can be used as BoolType" ~: canBeUsedAsType (PrimitiveType ObjectType) (PrimitiveType BoolType) ~?= True,
+            "BoolType can be used as AnyType" ~: canBeUsedAsType (PrimitiveType BoolType) (PrimitiveType AnyType) ~?= True,
+            "AnyType can be used as BoolType" ~: canBeUsedAsType (PrimitiveType AnyType) (PrimitiveType BoolType) ~?= True,
+            "BoolType can be used as MaybeType BoolType" ~: canBeUsedAsType (PrimitiveType BoolType) (MaybeType BoolType) ~?= True,
+            "MaybeType BoolType can NOT be used as BoolType" ~: canBeUsedAsType (MaybeType BoolType) (PrimitiveType BoolType) ~?= False
         ]
 
 main :: IO ()
@@ -72,6 +87,12 @@ main = do
   QC.quickCheck prop_all_value_match_any_type
   putStrLn "prop_no_value_match_empty_type"
   QC.quickCheck prop_no_value_match_empty_type
+  putStrLn "prop_all_type_match_any_type"
+  QC.quickCheck prop_all_type_match_any_type
+  putStrLn "prop_type_as_maybe_type"
+  QC.quickCheck prop_type_as_maybe_type
+  putStrLn "prop_type_as_itself"
+  QC.quickCheck prop_type_as_itself
   putStrLn "\n**unit tests**\n"
   _ <- test_unit_all
   return ()

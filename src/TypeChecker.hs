@@ -10,6 +10,12 @@ import qualified Data.Set as Set
 
 type TypeDeclaration = Map Name Type
 
+data CheckResult
+  = Success
+  | Failure
+  | Unknown
+  deriving (Eq, Show, Ord)
+
 -- Returns the CheckResult value of a boolean
 boolToCheckResult :: Bool -> CheckResult
 boolToCheckResult True = Success
@@ -17,7 +23,9 @@ boolToCheckResult False = Failure
 
 -- Checks if a value can be used as a given primitive type
 doesValueMatchPrimitiveType :: Value -> PrimitiveType -> Bool
-doesValueMatchPrimitiveType (BoolVal _) BoolType = True
+doesValueMatchPrimitiveType UndefinedVal BoolType = False
+doesValueMatchPrimitiveType NullVal BoolType = False
+doesValueMatchPrimitiveType _ BoolType = True -- values other than `undefined` and `null` can be used as BoolType
 doesValueMatchPrimitiveType (StringVal _) StringType = True
 doesValueMatchPrimitiveType (NumberVal _) NumberType = True
 doesValueMatchPrimitiveType (ObjectVal _) ObjectType = True
@@ -28,8 +36,10 @@ doesValueMatchPrimitiveType _ _ = False
 
 -- Checks if a value can be used as a given type
 doesValueMatchType :: Value -> Type -> CheckResult
-doesValueMatchType value (PrimitiveType t) = boolToCheckResult (doesValueMatchPrimitiveType value t)
-doesValueMatchType value (UnionType types) = boolToCheckResult (any (doesValueMatchPrimitiveType value) types)
+doesValueMatchType value (PrimitiveType t) = 
+    boolToCheckResult (doesValueMatchPrimitiveType value t)
+doesValueMatchType value (UnionType types) = 
+    boolToCheckResult (any (doesValueMatchPrimitiveType value) types)
 doesValueMatchType value (MaybeType t) =
     boolToCheckResult
         (doesValueMatchPrimitiveType value t
@@ -39,19 +49,39 @@ doesValueMatchType value (MaybeType t) =
 
 -- Checks if a type can be used when another type is expected
 canBeUsedAsType :: Type -> Type -> Bool
+canBeUsedAsType _ (PrimitiveType AnyType) = True
 canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2) =
     t1 == t2
-    || t2 == AnyType
-    || t2 == BoolType && t1 /= UndefinedType && t1 /= NullType && t1 /= EmptyType && t1 /= VoidType
+    || t2 == BoolType && t1 /= UndefinedType && t1 /= NullType 
+       && t1 /= EmptyType && t1 /= VoidType
 canBeUsedAsType (PrimitiveType t1) (UnionType ts) =
     any (canBeUsedAsType (PrimitiveType t1) . PrimitiveType) ts
 canBeUsedAsType t1'@(PrimitiveType t1) t2'@(MaybeType t2) =
-    canBeUsedAsType t1' t2'
+    t1 == t2
     || t1 == UndefinedType
     || t1 == NullType
 canBeUsedAsType (UnionType ts1) (UnionType ts2) = Set.fromList ts1 == Set.fromList ts2
 canBeUsedAsType (MaybeType t1) (MaybeType t2) = canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2)
 canBeUsedAsType _ _ = False
+
+doesUopMatchValue :: Uop -> Value -> Bool
+doesUopMatchValue Neg (BoolVal _) = True
+doesUopMatchValue Neg (NumberVal _) = True
+doesUopMatchValue Neg _ = False
+doesUopMatchValue Not val = doesValueMatchPrimitiveType val BoolType
+doesUopMatchValue TypeOf _ = True
+
+doesUopMatchType :: Uop -> Type -> Bool
+doesUopMatchType Neg (PrimitiveType t) = case t of
+    BoolType -> True
+    NumberType -> True
+    _ -> False
+doesUopMatchType Neg (UnionType ts) = all (doesUopMatchType Neg . PrimitiveType) ts
+doesUopMatchType Neg (MaybeType t) = doesUopMatchType Neg (PrimitiveType t)
+doesUopMatchType Not (PrimitiveType t) = canBeUsedAsType (PrimitiveType t) (PrimitiveType BoolType)
+doesUopMatchType Not (UnionType ts) = all (doesUopMatchType Not . PrimitiveType) ts
+doesUopMatchType Not (MaybeType t) = doesUopMatchType Not (PrimitiveType t)
+doesUopMatchType TypeOf _ = True
 
 -- Checks if an expression can be used as a given type
 doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
@@ -66,11 +96,11 @@ doesExpressionMatchType (Var var) t =
         _ -> return Unknown
 doesExpressionMatchType (Op1 uop e) t =
     case e of
-        Val value -> undefined -- TODO: check whether the given `uop` can be applied to the given `value`
+        Val value -> return (boolToCheckResult (doesUopMatchValue uop value))
         Var (Name name) -> do
             store <- S.get
             case store !? name of
-                Just t' -> undefined -- TODO: check whether the given `uop` can be applied to the given `t'`
+                Just t' -> return (boolToCheckResult (doesUopMatchType uop t'))
                 Nothing -> return Unknown
         _ -> return Unknown
 doesExpressionMatchType (Op2 e1 bop e2) t =

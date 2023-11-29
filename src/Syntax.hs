@@ -24,12 +24,6 @@ data Var
   | Proj Expression Expression -- t[1], access the object property 1
   deriving (Eq, Show)
 
-data CheckResult
-  = Success
-  | Failure
-  | Unknown
-  deriving (Eq, Show, Ord)
-
 newtype Block = Block [Statement] -- s1 ... sn
 
 instance Semigroup Block where
