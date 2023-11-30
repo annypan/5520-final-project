@@ -22,9 +22,7 @@ boolToCheckResult False = Failure
 
 -- Checks if a value can be used as a given primitive type
 doesValueMatchPrimitiveType :: Value -> PrimitiveType -> Bool
-doesValueMatchPrimitiveType UndefinedVal BoolType = False
-doesValueMatchPrimitiveType NullVal BoolType = False
-doesValueMatchPrimitiveType _ BoolType = True -- values other than `undefined` and `null` can be used as BoolType
+doesValueMatchPrimitiveType (BoolVal _) BoolType = True
 doesValueMatchPrimitiveType (StringVal _) StringType = True
 doesValueMatchPrimitiveType (NumberVal _) NumberType = True
 doesValueMatchPrimitiveType (ObjectVal _) ObjectType = True
@@ -49,10 +47,7 @@ doesValueMatchType value (MaybeType t) =
 -- Checks if a type can be used when another type is expected
 canBeUsedAsType :: Type -> Type -> Bool
 canBeUsedAsType _ (PrimitiveType AnyType) = True
-canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2) =
-    t1 == t2
-    || t2 == BoolType && t1 /= UndefinedType && t1 /= NullType
-       && t1 /= EmptyType && t1 /= VoidType
+canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2) = t1 == t2
 canBeUsedAsType (PrimitiveType t1) (UnionType ts) =
     any (canBeUsedAsType (PrimitiveType t1) . PrimitiveType) ts
 canBeUsedAsType t1'@(PrimitiveType t1) t2'@(MaybeType t2) =
@@ -60,15 +55,10 @@ canBeUsedAsType t1'@(PrimitiveType t1) t2'@(MaybeType t2) =
     || t1 == UndefinedType
     || t1 == NullType
 canBeUsedAsType (UnionType ts1) (UnionType ts2) = Set.fromList ts1 `Set.isSubsetOf` Set.fromList ts2
-canBeUsedAsType (MaybeType t1) (MaybeType t2) = canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2)
+canBeUsedAsType (UnionType ts1) (MaybeType t2) = Set.fromList ts1 `Set.isSubsetOf` Set.fromList [t2, UndefinedType, NullType]
+canBeUsedAsType (MaybeType t1) (UnionType ts2) = Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
+canBeUsedAsType (MaybeType t1) (MaybeType t2) = t1 == t2
 canBeUsedAsType _ _ = False
-
--- Generates all super types of a given type
-genSuperTypes :: Type -> [Type]
-genSuperTypes (PrimitiveType t) =
-    let ret = [AnyType, t] ++ ([BoolType | not (t == NullType || t == UndefinedType || t == EmptyType || t == VoidType || t == BoolType)]) in
-            map PrimitiveType ret ++ map MaybeType ret ++ map (UnionType . return) ret
-genSuperTypes ts = [ts]
 
 -- Gets the primitive type of a value
 getType :: Value -> PrimitiveType
@@ -94,7 +84,7 @@ doesUopMatchType TypeOf _ = True
 
 -- Checks if a unary operator can be used with a given value
 doesUopMatchValue :: Uop -> Value -> Bool
-doesUopMatchValue uop val = any (doesUopMatchType uop) (genSuperTypes (PrimitiveType (getType val)))
+doesUopMatchValue uop val = doesUopMatchType uop (PrimitiveType (getType val))
 
 -- Checks if an arithmetic operator can be used with given types
 doesArithMatchType :: Bop -> Type -> Type -> Bool
@@ -134,6 +124,9 @@ doesBopMatchType bop t1 t2 = case bop of
         (PrimitiveType t1', PrimitiveType ObjectType) -> t1' == StringType || t1' == NumberType
         _ -> False
 
+doesBopMatchValue :: Bop -> Value -> Value -> Bool
+doesBopMatchValue bop v1 v2 = doesBopMatchType bop (PrimitiveType (getType v1)) (PrimitiveType (getType v2))
+
 -- Checks if an expression can be used as a given type
 doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
 doesExpressionMatchType (Val value) t = return (doesValueMatchType value t)
@@ -156,7 +149,7 @@ doesExpressionMatchType (Op1 uop e) t =
         _ -> return Unknown
 doesExpressionMatchType (Op2 e1 bop e2) t =
     case (e1, e2) of
-        (Val value1, Val value2) -> undefined -- TODO: check whether the given `bop` can be applied to the given `value1` and `value2`
+        (Val value1, Val value2) -> return (boolToCheckResult (doesBopMatchValue bop value1 value2))
         (Var (Name name1), Var (Name name2)) -> do
             store <- S.get
             case (store !? name1, store !? name2) of
@@ -165,8 +158,8 @@ doesExpressionMatchType (Op2 e1 bop e2) t =
         (Var (Name name), Val value) -> do
             store <- S.get
             case store !? name of
-                Just t' -> undefined -- TODO: check whether the given `bop` can be applied to the given `t'` and `value`
-                Nothing -> return Unknown 
+                Just t' -> return (boolToCheckResult (doesBopMatchType bop t' (PrimitiveType (getType value))))
+                Nothing -> return Unknown
         (Val value, Var (Name name)) -> do
             store <- S.get
             case store !? name of

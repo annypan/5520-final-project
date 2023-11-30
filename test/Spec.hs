@@ -44,7 +44,7 @@ prop_type_as_itself t = canBeUsedAsType t t
 
 -- unit tests
 test_unit_all :: IO Counts
-test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType, testGetType, testGenSuperTypes]
+test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType, testGetType]
 
 testDoesValueMatchPrimitiveType :: Test
 testDoesValueMatchPrimitiveType =
@@ -87,18 +87,6 @@ testGetType =
             "GetType of ObjectVal Map.empty" ~: getType (ObjectVal Map.empty) ~?= ObjectType,
             "GetType of UndefinedVal" ~: getType UndefinedVal ~?= UndefinedType,
             "GetType of NullVal" ~: getType NullVal ~?= NullType
-        ]
-
-testGenSuperTypes :: Test
-testGenSuperTypes = 
-    TestList
-        [
-            "Supertypes of BoolType" ~: Set.fromList (genSuperTypes (PrimitiveType BoolType)) ~?= 
-                Set.fromList [PrimitiveType AnyType, PrimitiveType BoolType, UnionType [AnyType], UnionType [BoolType], MaybeType AnyType, MaybeType BoolType],
-            "Supertypes of ObjectType" ~: Set.fromList (genSuperTypes (PrimitiveType ObjectType)) ~?= 
-                Set.fromList [PrimitiveType AnyType, PrimitiveType BoolType, PrimitiveType ObjectType, 
-                              UnionType [AnyType], UnionType [BoolType], UnionType [ObjectType],
-                              MaybeType AnyType, MaybeType BoolType, MaybeType ObjectType]
         ]
 
 main :: IO ()
