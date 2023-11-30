@@ -1,7 +1,30 @@
-module Parser (Parser, parse) where
+module Parser
+  ( Parser,
+    doParse,
+    get,
+    eof,
+    filter,
+    parse,
+    ParseError,
+    satisfy,
+    alpha,
+    digit,
+    space,
+    char,
+    string,
+    int,
+    sepBy1,
+    sepBy,
+    many,
+  )
+where
 
 import Control.Applicative (Alternative (..))
-import Control.Monad (MonadPlus (..))
+import Control.Monad (guard)
+import Data.Char
+import Data.Foldable (asum)
+import Text.Read (readMaybe)
+import Prelude hiding (filter)
 
 newtype Parser a = P {doParse :: String -> Maybe (a, String)}
 
@@ -21,6 +44,19 @@ instance Applicative Parser where
     (x, s'') <- doParse p2 s'
     return (f x, s'')
 
+instance Alternative Parser where
+  empty :: Parser a
+  empty = P $ const Nothing
+
+  (<|>) :: Parser a -> Parser a -> Parser a
+  p1 <|> p2 = P $ \s -> doParse p1 s `firstJust` doParse p2 s
+
+  many :: (Alternative f) => f a -> f [a]
+  many p = some p <|> pure []
+
+  some :: (Alternative f) => f a -> f [a]
+  some p = (:) <$> p <*> many p
+
 instance Monad Parser where
   return :: a -> Parser a
   return = pure
@@ -29,9 +65,80 @@ instance Monad Parser where
     (a, s') <- p s
     doParse (f a) s'
 
+-- | Combine two Maybe values together, producing the first
+-- successful result
+firstJust :: Maybe a -> Maybe a -> Maybe a
+firstJust (Just x) _ = Just x
+firstJust Nothing y = y
+
+-- | Return the next character from the input
+get :: Parser Char
+get = P $ \s -> case s of
+  [] -> Nothing
+  (c : cs) -> Just (c, cs)
+
+-- | This parser *only* succeeds at the end of the input.
+eof :: Parser ()
+eof = P $ \s -> case s of
+  [] -> Just ((), [])
+  _ : _ -> Nothing
+
+-- | Filter the parsing results by a predicate
+filter :: (a -> Bool) -> Parser a -> Parser a
+filter f p = P $ \s -> do
+  (c, cs) <- doParse p s
+  guard (f c)
+  return (c, cs)
+
 type ParseError = String
 
 parse :: Parser a -> String -> Either ParseError a
 parse parser str = case doParse parser str of
   Nothing -> Left "No parses"
   Just (a, _) -> Right a
+
+-- | Return the next character if it satisfies the given predicate
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy p = filter p get
+
+-- | Parsers for specific sorts of characters
+alpha, digit, space :: Parser Char
+alpha = satisfy isAlpha
+digit = satisfy isDigit
+space = satisfy isSpace
+
+-- | Parses and returns the specified character
+-- succeeds only if the input is exactly that character
+char :: Char -> Parser Char
+char c = satisfy (c ==)
+
+-- | Parses and returns the specified string.
+-- Succeeds only if the input is the given string
+string :: String -> Parser String
+string = foldr (\c p -> (:) <$> char c <*> p) (pure "")
+
+int :: Parser Int
+int = f <$> ((++) <$> string "-" <*> some digit <|> some digit)
+  where
+    f str = case readMaybe str of
+      Just x -> x
+      Nothing -> error $ "Bug: can't parse '" ++ str ++ "' as an int"
+
+-- | Combine all parsers in the list (sequentially)
+choice :: [Parser a] -> Parser a
+choice = asum -- equivalent to: foldr (<|>) empty
+
+-- | @between open close p@ parses @open@, followed by @p@ and finally
+--   @close@. Only the value of @p@ is pureed.
+between :: Parser open -> Parser a -> Parser close -> Parser a
+between open p close = open *> p <* close
+
+-- | @sepBy p sep@ parses zero or more occurrences of @p@, separated by @sep@.
+--   Returns a list of values returned by @p@.
+sepBy :: Parser a -> Parser sep -> Parser [a]
+sepBy p sep = sepBy1 p sep <|> pure []
+
+-- | @sepBy1 p sep@ parses one or more occurrences of @p@, separated by @sep@.
+--   Returns a list of values returned by @p@.
+sepBy1 :: Parser a -> Parser sep -> Parser [a]
+sepBy1 p sep = (:) <$> p <*> many (sep *> p)
