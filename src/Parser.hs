@@ -9,13 +9,20 @@ module Parser
     satisfy,
     alpha,
     digit,
+    upper,
+    lower,
     space,
     char,
     string,
     int,
+    chainl1,
+    choice,
+    between,
     sepBy1,
     sepBy,
     many,
+    some,
+    (<|>),
   )
 where
 
@@ -102,9 +109,11 @@ satisfy :: (Char -> Bool) -> Parser Char
 satisfy p = filter p get
 
 -- | Parsers for specific sorts of characters
-alpha, digit, space :: Parser Char
+alpha, digit, upper, lower, space :: Parser Char
 alpha = satisfy isAlpha
 digit = satisfy isDigit
+upper = satisfy isUpper
+lower = satisfy isLower
 space = satisfy isSpace
 
 -- | Parses and returns the specified character
@@ -123,6 +132,16 @@ int = f <$> ((++) <$> string "-" <*> some digit <|> some digit)
     f str = case readMaybe str of
       Just x -> x
       Nothing -> error $ "Bug: can't parse '" ++ str ++ "' as an int"
+
+-- | Parses one or more occurrences of @p@ separated by binary operator
+-- parser @pop@.  Returns a value produced by a /left/ associative application
+-- of all functions returned by @pop@.
+-- See the end of the `Parsers` lecture for explanation of this operator.
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` pop = foldl comb <$> p <*> rest
+  where
+    comb x (op, y) = x `op` y
+    rest = many ((,) <$> pop <*> p)
 
 -- | Combine all parsers in the list (sequentially)
 choice :: [Parser a] -> Parser a
