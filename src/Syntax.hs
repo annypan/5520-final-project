@@ -132,6 +132,14 @@ instance Arbitrary Type where
   shrink (UnionType ts) = UnionType <$> shrink ts
   shrink (MaybeType t) = MaybeType <$> shrink t
 
+instance Arbitrary Uop where
+  arbitrary = QC.elements [minBound .. maxBound]
+  shrink = const []
+
+instance Arbitrary Bop where
+  arbitrary = QC.elements [minBound .. maxBound]
+  shrink = const []
+
 -- genName :: Gen Name
 -- genName = QC.elements ["_", "_G", "x", "X", "y", "x0", "X0", "xy", "XY", "_x"]
 

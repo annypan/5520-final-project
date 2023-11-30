@@ -51,12 +51,13 @@ canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2) = t1 == t2
 canBeUsedAsType (PrimitiveType t1) (UnionType ts) =
     any (canBeUsedAsType (PrimitiveType t1) . PrimitiveType) ts
 canBeUsedAsType t1'@(PrimitiveType t1) t2'@(MaybeType t2) =
-    t1 == t2
-    || t1 == UndefinedType
-    || t1 == NullType
-canBeUsedAsType (UnionType ts1) (UnionType ts2) = Set.fromList ts1 `Set.isSubsetOf` Set.fromList ts2
-canBeUsedAsType (UnionType ts1) (MaybeType t2) = Set.fromList ts1 `Set.isSubsetOf` Set.fromList [t2, UndefinedType, NullType]
-canBeUsedAsType (MaybeType t1) (UnionType ts2) = Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
+    t1 == t2 || t1 == UndefinedType || t1 == NullType
+canBeUsedAsType (UnionType ts1) (UnionType ts2) = 
+    Set.fromList ts1 `Set.isSubsetOf` Set.fromList ts2
+canBeUsedAsType (UnionType ts1) (MaybeType t2) = 
+    Set.fromList ts1 `Set.isSubsetOf` Set.fromList [t2, UndefinedType, NullType]
+canBeUsedAsType (MaybeType t1) (UnionType ts2) = 
+    Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
 canBeUsedAsType (MaybeType t1) (MaybeType t2) = t1 == t2
 canBeUsedAsType _ _ = False
 
@@ -71,13 +72,11 @@ getType NullVal = NullType
 
 -- Checks if a unary operator can be used with a given type
 doesUopMatchType :: Uop -> Type -> Bool
-doesUopMatchType Neg (PrimitiveType t) = case t of
-    BoolType -> True
-    NumberType -> True
-    _ -> False
-doesUopMatchType Neg (UnionType ts) = all (doesUopMatchType Neg . PrimitiveType) ts
-doesUopMatchType Neg (MaybeType t) = doesUopMatchType Neg (PrimitiveType t)
-doesUopMatchType Not (PrimitiveType t) = canBeUsedAsType (PrimitiveType t) (PrimitiveType BoolType)
+doesUopMatchType Neg (PrimitiveType t) = t == NumberType || t == AnyType
+doesUopMatchType Neg (UnionType ts) = 
+    Set.fromList ts `Set.isSubsetOf` Set.fromList [NumberType, AnyType]
+doesUopMatchType Neg (MaybeType t) = False
+doesUopMatchType Not (PrimitiveType t) = t /= VoidType
 doesUopMatchType Not (UnionType ts) = all (doesUopMatchType Not . PrimitiveType) ts
 doesUopMatchType Not (MaybeType t) = doesUopMatchType Not (PrimitiveType t)
 doesUopMatchType TypeOf _ = True
@@ -89,19 +88,46 @@ doesUopMatchValue uop val = doesUopMatchType uop (PrimitiveType (getType val))
 -- Checks if an arithmetic operator can be used with given types
 doesArithMatchType :: Bop -> Type -> Type -> Bool
 doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2) = case (t1, t2) of
+    (AnyType, _) -> True
+    (_, AnyType) -> True
     (NumberType, NumberType) -> True
     _ -> False
+doesArithMatchType arith (PrimitiveType t1) (UnionType ts2) =
+    all (doesArithMatchType arith (PrimitiveType t1) . PrimitiveType) ts2
+doesArithMatchType arith (PrimitiveType t1) (MaybeType t2) =
+    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
 doesArithMatchType arith (UnionType ts1) (PrimitiveType t2) =
     all (doesArithMatchType arith (PrimitiveType t2) . PrimitiveType) ts1
-doesArithMatchType arith (PrimitiveType t1) (UnionType ts2) =
-    all (doesBopMatchType arith (PrimitiveType t1) . PrimitiveType) ts2
 doesArithMatchType arith (UnionType ts1) (UnionType ts2) =
     all (\t1 -> all (doesBopMatchType arith (PrimitiveType t1) . PrimitiveType) ts2) ts1
-doesArithMatchType _ _ _ = False
+doesArithMatchType arith (UnionType ts1) (MaybeType t2) =
+    all (doesArithMatchType arith (PrimitiveType t2) . PrimitiveType) ts1
+doesArithMatchType arith (MaybeType t1) (PrimitiveType t2) =
+    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
+doesArithMatchType arith (MaybeType t1) (UnionType ts2) =
+    all (doesArithMatchType arith (PrimitiveType t1) . PrimitiveType) ts2
+doesArithMatchType arith (MaybeType t1) (MaybeType t2) =
+    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
 
 doesCompMatchType :: Bop -> Type -> Type -> Bool
-doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2) = t1 == t2
-doesCompMatchType _ _ _ = False
+doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2) = 
+    t1 == t2 || t1 == AnyType || t2 == AnyType
+doesCompMatchType bop (PrimitiveType t1) (UnionType ts2) =
+    all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2
+doesCompMatchType bop (PrimitiveType t1) (MaybeType t2) =
+    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
+doesCompMatchType bop (UnionType ts1) (PrimitiveType t2) =
+    all (doesCompMatchType bop (PrimitiveType t2) . PrimitiveType) ts1
+doesCompMatchType bop (UnionType ts1) (UnionType ts2) =
+    all (\t1 -> all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2) ts1
+doesCompMatchType bop (UnionType ts1) (MaybeType t2) =
+    all (doesCompMatchType bop (PrimitiveType t2) . PrimitiveType) ts1
+doesCompMatchType bop (MaybeType t1) (PrimitiveType t2) =
+    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
+doesCompMatchType bop (MaybeType t1) (UnionType ts2) =
+    all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2
+doesCompMatchType bop (MaybeType t1) (MaybeType t2) =
+    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
 
 -- Checks if a binary operator can be used with given types
 doesBopMatchType :: Bop -> Type -> Type -> Bool
@@ -118,9 +144,13 @@ doesBopMatchType bop t1 t2 = case bop of
     Lt -> doesCompMatchType bop t1 t2
     Le -> doesCompMatchType bop t1 t2
     Concat -> case (t1, t2) of
+        (PrimitiveType AnyType, _) -> True
+        (_, PrimitiveType AnyType) -> True
         (PrimitiveType StringType, PrimitiveType StringType) -> True
         _ -> False
     In -> case (t1, t2) of
+        (PrimitiveType AnyType, _) -> True
+        (_, PrimitiveType AnyType) -> True
         (PrimitiveType t1', PrimitiveType ObjectType) -> t1' == StringType || t1' == NumberType
         _ -> False
 
