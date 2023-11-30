@@ -6,6 +6,8 @@ import Parser qualified as P
 import FlowParser
 import PrettyPrinter
 import qualified Data.Map as Map
+
+import qualified Data.Set as Set
 import TypeChecker
 
 -- QC properties
@@ -42,7 +44,7 @@ prop_type_as_itself t = canBeUsedAsType t t
 
 -- unit tests
 test_unit_all :: IO Counts
-test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType]
+test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType, testGetType, testGenSuperTypes]
 
 testDoesValueMatchPrimitiveType :: Test
 testDoesValueMatchPrimitiveType =
@@ -73,6 +75,30 @@ testCanBeUsedAsType =
             "AnyType can be used as BoolType" ~: canBeUsedAsType (PrimitiveType AnyType) (PrimitiveType BoolType) ~?= True,
             "BoolType can be used as MaybeType BoolType" ~: canBeUsedAsType (PrimitiveType BoolType) (MaybeType BoolType) ~?= True,
             "MaybeType BoolType can NOT be used as BoolType" ~: canBeUsedAsType (MaybeType BoolType) (PrimitiveType BoolType) ~?= False
+        ]
+
+testGetType :: Test
+testGetType = 
+    TestList
+        [
+            "GetType of BoolVal True" ~: getType (BoolVal True) ~?= BoolType,
+            "GetType of StringVal \"hello\"" ~: getType (StringVal "hello") ~?= StringType,
+            "GetType of NumberVal 1" ~: getType (NumberVal 1) ~?= NumberType,
+            "GetType of ObjectVal Map.empty" ~: getType (ObjectVal Map.empty) ~?= ObjectType,
+            "GetType of UndefinedVal" ~: getType UndefinedVal ~?= UndefinedType,
+            "GetType of NullVal" ~: getType NullVal ~?= NullType
+        ]
+
+testGenSuperTypes :: Test
+testGenSuperTypes = 
+    TestList
+        [
+            "Supertypes of BoolType" ~: Set.fromList (genSuperTypes (PrimitiveType BoolType)) ~?= 
+                Set.fromList [PrimitiveType AnyType, PrimitiveType BoolType, UnionType [AnyType], UnionType [BoolType], MaybeType AnyType, MaybeType BoolType],
+            "Supertypes of ObjectType" ~: Set.fromList (genSuperTypes (PrimitiveType ObjectType)) ~?= 
+                Set.fromList [PrimitiveType AnyType, PrimitiveType BoolType, PrimitiveType ObjectType, 
+                              UnionType [AnyType], UnionType [BoolType], UnionType [ObjectType],
+                              MaybeType AnyType, MaybeType BoolType, MaybeType ObjectType]
         ]
 
 main :: IO ()
