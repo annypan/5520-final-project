@@ -31,10 +31,10 @@ import Control.Applicative (Alternative (..))
 import Control.Monad (guard)
 import Data.Char
 import Data.Foldable (asum)
+import System.IO qualified as IO
+import System.IO.Error qualified as IO
 import Text.Read (readMaybe)
 import Prelude hiding (filter)
-import qualified System.IO as IO
-import qualified System.IO.Error as IO
 
 newtype Parser a = P {doParse :: String -> Maybe (a, String)}
 
@@ -168,9 +168,11 @@ sepBy1 p sep = (:) <$> p <*> many (sep *> p)
 parseFromFile :: Parser a -> String -> IO (Either ParseError a)
 parseFromFile parser filename = do
   IO.catchIOError
-    (do
+    ( do
         handle <- IO.openFile filename IO.ReadMode
         str <- IO.hGetContents handle
-        pure $ parse parser str)
-    (\e ->
-        pure $ Left $ "Error:" ++ show e)
+        pure $ parse parser str
+    )
+    ( \e ->
+        pure $ Left $ "Error:" ++ show e
+    )

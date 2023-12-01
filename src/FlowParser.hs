@@ -2,6 +2,7 @@ module FlowParser where
 
 import Data.Char qualified as Char
 import Data.Map qualified as Map
+import GHC.Conc qualified as P
 import Parser (Parser)
 import Parser qualified as P
 import Syntax
@@ -109,7 +110,7 @@ expP = compP
       Val <$> valueP
         P.<|> parens expP
         P.<|> Var <$> varP
-        -- P.<|> callP
+        P.<|> callP
 
 -- | Parse an operator at a specified precedence level
 -- opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
@@ -192,6 +193,16 @@ nameP = P.filter pred (wsP $ (:) <$> beginC <*> P.many c)
     c = beginC P.<|> P.digit
     pred name = name `notElem` reserved
 
+-- >>> P.parse (P.many funcNameP) "f f1 f2"
+-- Right ["f","f1","f2"]
+
+funcNameP :: Parser FuncName
+funcNameP = P.filter pred (wsP $ (:) <$> beginC <*> P.many c)
+  where
+    beginC = P.lower P.<|> P.upper P.<|> P.char '_'
+    c = beginC P.<|> P.digit
+    pred name = name `notElem` reserved
+
 -- | Parser for unary operators
 -- >>> P.parse (P.many uopP) "- - ! - typeof -"
 -- Right [Neg,Neg,Not,Neg,TypeOf,Neg]
@@ -261,14 +272,19 @@ maybetypeP = MaybeType <$> (P.char '?' *> primitivetypeP)
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
 
 -- | Parser for function calls
+
+-- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
+-- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
 callP :: Parser Expression
-callP = undefined
+callP = Call <$> funcNameP <*> parens (P.sepBy expP (wsP (P.char ',')))
 
 -- | Parser for statements
 assignP :: Parser Statement
-assignP = Assign <$>
-  ((stringP "const" P.<|> stringP "var") *> varP)
-  <* wsP (P.char '=') <*> expP
+assignP =
+  Assign
+    <$> ((stringP "const" P.<|> stringP "var") *> varP)
+    <* wsP (P.char '=')
+    <*> expP
 
 -- >>> P.parse assignP "const x = 1;"
 -- Right (Assign (Name "x") (Val (NumberVal 1)))
@@ -282,13 +298,27 @@ assignP = Assign <$>
 ifP :: Parser Statement
 ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else" *> braces blockP)
 
+-- ifP = do
+--   stringP "if"
+--   cond <- parens expP
+--   thenBlock <- braces blockP
+--   stringP "else"
+--   elseBlock <- braces blockP
+--   return $ If cond thenBlock elseBlock
+
 -- >>> P.parse ifP "if (x > 0) {x = 1} else {x = 2}"
 -- Left "No parses"
 emptyP = Empty <$ stringP ";"
 
+whileP :: Parser Statement
+whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
+
+-- >>> P.parse whileP "while (x > 0) {x = x - 1}"
+-- Left "No parses"
+
 -- Parses blocks separated by semicolons
 blockP :: Parser Block
-blockP = Block <$> P.sepBy statementP (stringP ";")
+blockP = Block <$> P.sepBy statementP (wsP (stringP ";"))
 
 -- >>> P.parse blockP "const x = true; const y = false; y = -x"
 -- Right (Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))])
@@ -297,16 +327,15 @@ parseJSFile :: String -> IO (Either P.ParseError Block)
 parseJSFile = P.parseFromFile blockP
 
 tParseFiles :: Test
-tParseFiles = 
+tParseFiles =
   "parse files" ~:
     TestList
-      [
-        "assign" ~: p "js/assign.js" wAssign,
+      [ "assign" ~: p "js/assign.js" wAssign,
         "assignConflict" ~: p "js/assignConflict.js" wAssignConflict
       ]
-    where 
-      p fn ast = do
-        result <- parseJSFile fn
-        case result of
-          Left _ -> assert False
-          Right ast' -> assert (ast == ast')
+  where
+    p fn ast = do
+      result <- parseJSFile fn
+      case result of
+        Left _ -> assert False
+        Right ast' -> assert (ast == ast')
