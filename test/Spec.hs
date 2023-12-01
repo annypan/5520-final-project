@@ -47,6 +47,8 @@ prop_type_as_maybe_type t = canBeUsedAsType (PrimitiveType t) (MaybeType t)
 prop_type_as_itself :: Type -> Bool
 prop_type_as_itself t = canBeUsedAsType t t
 
+-- t1 <= t2, t2 <= t3 => t1 <= t3
+
 -- AnyType matches any uop
 prop_anytype_matches_any_uop :: Uop -> Bool
 prop_anytype_matches_any_uop uop = doesUopMatchType uop (PrimitiveType AnyType)

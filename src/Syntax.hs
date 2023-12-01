@@ -8,7 +8,6 @@ import qualified Data.Char as Char
 type Object = Map Name Value
 type Name = String
 type FuncName = String
-type FunctionArg = (Name, Type)
 
 data Statement
   = Assign Var Expression -- x = e -- handles var, let, const
@@ -17,14 +16,13 @@ data Statement
   | Empty -- ';'
   | For Statement Expression Expression Block -- for (s1; e1; e2) {s2}
   | Return Expression -- return e
-  | FunctionDef FuncName [FunctionArg] Type Block -- function f(x1, ..., xn) s
+  | FunctionDef FuncName Type Block -- function f(x1, ..., xn) s -- should actually be functype
   deriving (Eq, Show)
 
 data Var
   = Name Name -- x, global variable
   | Dot Expression Name -- t.x, access the object property x
-  | Proj Expression Expression -- t[1], access the object property 1 
-  -- DISCUSS: change to Proj Expression Name ?
+  | Proj Expression Name -- t[1], access the object property 1 
   deriving (Eq, Show)
 
 newtype Block = Block [Statement] -- s1 ... sn
@@ -61,14 +59,14 @@ data PrimitiveType
   | UndefinedType
   | EmptyType -- https://flow.org/en/docs/types/empty/
   | AnyType -- https://flow.org/en/docs/types/any/
-  | ObjectType
-  | VoidType -- only used for function return types
+  | ObjectType (Map String Type)
   deriving (Eq, Show, Ord)
 
 data Type
   = PrimitiveType PrimitiveType
   | UnionType [PrimitiveType]
   | MaybeType PrimitiveType
+  | FunctionType [Type] Type
   deriving (Eq, Show, Ord)
 
 data Uop

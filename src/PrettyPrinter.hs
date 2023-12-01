@@ -75,7 +75,6 @@ instance PP PrimitiveType where
   pp EmptyType = PP.text "empty"
   pp AnyType = PP.text "any"
   pp ObjectType = PP.text "object"
-  pp VoidType = PP.text "void"
 
 instance PP Type where
   pp (PrimitiveType t) = pp t
