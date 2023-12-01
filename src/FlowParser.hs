@@ -31,7 +31,7 @@ brackets x = P.between (stringP "[") x (stringP "]")
 
 -- | Parsing Statements
 statementP :: Parser Statement
-statementP = undefined
+statementP = assignP
 
 -- | Parsing Constants
 valueP :: Parser Value
@@ -75,15 +75,22 @@ stringValP =
 
 -- TODO: debug this (? definition of Object)
 objectValP :: Parser Value
-objectValP = ObjectVal . Map.fromList <$> braces (P.sepBy pairP (wsP (P.char ',')))
+objectValP = ObjectVal <$> wsP (braces (Map.fromList <$> pairsP))
 
--- >>> P.parse (P.many pairP) "{x: 1, y: 2}"
--- Right []
+-- >>> P.parse (objectValP) "{x: 1, y: 2}"
+-- Right (ObjectVal (fromList [("x",NumberVal 1),("y",NumberVal 2)]))
 
 -- >>> P.parse pairP "x: 1"
--- Left "No parses"
-pairP :: Parser (Value, Value)
-pairP = wsP ((,) <$> valueP <* wsP (P.char ':') <*> valueP)
+-- Right ("x",NumberVal 1)
+pairP :: Parser (Name, Value)
+pairP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> valueP)
+
+-- >>> P.parse pairsP "x: 1, y: 2"
+-- Right [("x",NumberVal 1),("y",NumberVal 2)]
+-- >>> P.parse pairsP "x: 1, y: null, z: undefined"
+-- Right [("x",NumberVal 1),("y",NullVal),("z",UndefinedVal)]
+pairsP :: Parser [(Name, Value)]
+pairsP = wsP (P.sepBy pairP (wsP (P.char ',')))
 
 -- | Parsing Expressions
 expP :: Parser Expression -- type errors will be detected here
@@ -97,10 +104,10 @@ expP = compP
       baseP
         P.<|> Op1 <$> uopP <*> compP
     baseP =
-      callP
-        P.<|> Val <$> valueP
+      Val <$> valueP
         P.<|> parens expP
         P.<|> Var <$> varP
+        -- P.<|> callP
 
 -- | Parse an operator at a specified precedence level
 -- opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
@@ -110,8 +117,9 @@ expP = compP
 -- Right [Name "x",Name "y",Name "z"]
 
 -- >>> P.parse varP "(x.y[1]).z"
--- Prelude.undefined
-
+-- Right (Dot (Var (Proj (Var (Dot (Var (Name "x")) "y")) (Val (NumberVal 1)))) "z")
+-- >>> P.parse varP "x.y.z"
+-- Right (Dot (Var (Dot (Var (Name "x")) "y")) "z")
 varP :: Parser Var
 varP = mkVar <$> prefixP <*> P.some indexP P.<|> Name <$> nameP
   where
@@ -171,6 +179,7 @@ reserved =
 
 -- >>> P.parse (P.many nameP) "x sfds null 23x x3"
 -- Right ["x","sfds"]
+
 -- TODO: fix this
 -- current stops interpretation after the first invalid name
 
@@ -252,3 +261,29 @@ maybetypeP = MaybeType <$> (P.char '?' *> primitivetypeP)
 -- | Parser for function calls
 callP :: Parser Expression
 callP = undefined
+
+-- | Parser for statements
+assignP :: Parser Statement
+assignP = Assign <$>
+  ((stringP "const" P.<|> stringP "var") *> varP)
+  <* wsP (P.char '=') <*> expP
+
+-- >>> P.parse assignP "const x = 1;"
+-- Right (Assign (Name "x") (Val (NumberVal 1)))
+
+-- >>> P.parse assignP "var x = \"str\";"
+-- Right (Assign (Name "x") (Val (StringVal "str")))
+
+ifP :: Parser Statement
+ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else" *> braces blockP)
+
+-- >>> P.parse ifP "if (x > 0) {x = 1} else {x = 2}"
+-- Left "No parses"
+emptyP = Empty <$ stringP ";"
+
+-- Parses blocks separated by semicolons
+blockP :: Parser Block
+blockP = Block <$> P.sepBy statementP (stringP ";")
+
+-- >>> P.parse blockP "const x = True; const y = False; y = -x"
+-- Right (Block [Assign (Name "x") (Var (Name "True")),Assign (Name "y") (Var (Name "False"))])

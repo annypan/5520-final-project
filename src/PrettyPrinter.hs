@@ -40,6 +40,11 @@ instance PP Bop where
   pp Concat = PP.text "++"
   pp In = PP.text "in"
 
+instance PP (Map Name Value) where
+  pp m = PP.braces (PP.vcat (map ppa (Map.toList m)))
+    where
+      ppa (n, v) = PP.text n <+> PP.text "=" <+> pp v
+
 instance PP Value where
     pp (BoolVal b) = pp b
     pp (StringVal s) = pp s

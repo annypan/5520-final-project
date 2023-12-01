@@ -4,7 +4,7 @@ import Data.Map
 import Test.QuickCheck (Arbitrary (..), Gen)
 import qualified Test.QuickCheck as QC
 
-type Object = Map Value Value
+type Object = Map Name Value
 type Name = String
 type FuncName = String
 type FunctionArg = (Name, Type)
@@ -17,6 +17,7 @@ data Statement
   | For Statement Expression Expression Block -- for (s1; e1; e2) {s2}
   | Return Expression -- return e
   | FunctionDef FuncName [FunctionArg] Type Block -- function f(x1, ..., xn) s
+  deriving (Eq, Show)
 
 data Var
   = Name Name -- x, global variable
@@ -25,6 +26,7 @@ data Var
   deriving (Eq, Show)
 
 newtype Block = Block [Statement] -- s1 ... sn
+  deriving (Eq, Show)
 
 instance Semigroup Block where
   Block s1 <> Block s2 = Block (s1 <> s2)
