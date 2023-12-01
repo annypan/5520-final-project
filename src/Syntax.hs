@@ -3,6 +3,7 @@ module Syntax where
 import Data.Map
 import Test.QuickCheck (Arbitrary (..), Gen)
 import qualified Test.QuickCheck as QC
+import qualified Data.Char as Char
 
 type Object = Map Name Value
 type Name = String
@@ -22,7 +23,8 @@ data Statement
 data Var
   = Name Name -- x, global variable
   | Dot Expression Name -- t.x, access the object property x
-  | Proj Expression Expression -- t[1], access the object property 1
+  | Proj Expression Expression -- t[1], access the object property 1 
+  -- DISCUSS: change to Proj Expression Name ?
   deriving (Eq, Show)
 
 newtype Block = Block [Statement] -- s1 ... sn
@@ -91,19 +93,33 @@ data Bop
   | In -- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/in
   deriving (Eq, Show, Enum, Bounded)
 
+-- | Generate a string literal, being careful about the characters that it may contain
+genStringLit :: Gen String
+genStringLit = escape <$> QC.listOf (QC.elements stringLitChars)
+  where
+    -- escape special characters appearing in the string,
+    escape :: String -> String
+    escape = Prelude.foldr Char.showLitChar ""
+    -- generate strings containing printable characters or spaces, but not including '\"'
+    stringLitChars :: [Char]
+    stringLitChars = Prelude.filter (\c -> c /= '\"' && (Char.isSpace c || Char.isPrint c)) ['\NUL' .. '~']
+
+shrinkStringLit :: String -> [String]
+shrinkStringLit s = Prelude.filter (/= '\"') <$> shrink s
+
 instance Arbitrary Value where
   arbitrary = 
     QC.oneof
       [ BoolVal <$> arbitrary
-      , StringVal <$> arbitrary
+      , StringVal <$> genStringLit
       , NumberVal <$> arbitrary
-      -- , ObjectVal <$> arbitrary
+      -- , ObjectVal <$> arbitrary -- TODO: add later
       , pure UndefinedVal
       , pure NullVal
       ]
   
   shrink (BoolVal b) = BoolVal <$> shrink b
-  shrink (StringVal s) = StringVal <$> shrink s
+  shrink (StringVal s) = StringVal <$> shrinkStringLit s
   shrink (NumberVal n) = NumberVal <$> shrink n
   -- shrink (ObjectVal o) = ObjectVal <$> shrink o
   shrink _ = []

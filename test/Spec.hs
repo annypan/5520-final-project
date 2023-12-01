@@ -16,7 +16,10 @@ import qualified State as S
 prop_roundtrip_val :: Value -> Bool
 prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
 
-prop_roundtrip_exp :: Expression -> Bool
+prop_roundtrip_type :: Type -> Bool -- TODO: debug
+prop_roundtrip_type t = P.parse typeP (pretty t) == Right t
+
+prop_roundtrip_exp :: Expression -> Bool -- TODO: add Arbitrary for `Expression`
 prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
 
 -- if a value is a primitive type, then it can be used as a composite type; vice versa
@@ -79,7 +82,8 @@ typecheckerAllQC = do
 
 -- unit tests
 test_unit_all :: IO Counts
-test_unit_all = runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType, testGetType, testDoesExpressionMatchType]
+test_unit_all = 
+    runTestTT $ TestList [testDoesValueMatchPrimitiveType, testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testCheckStatement]
 
 testDoesValueMatchPrimitiveType :: Test
 testDoesValueMatchPrimitiveType =
@@ -140,12 +144,22 @@ testDoesExpressionMatchType =
         S.evalState (doesExpressionMatchType (Var (Name "x")) (PrimitiveType BoolType)) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure
     ]
 
+testCheckStatement :: Test
+testCheckStatement = 
+    TestList
+    [
+        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= Success,
+        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", PrimitiveType NumberType)]) ~?= Failure
+    ]
+
 main :: IO ()
 main = do
-  -- putStrLn "roundtrip_val"
-  -- QC.quickCheck prop_roundtrip_val
-  -- putStrLn "roundtrip_exp"
-  -- QC.quickCheck prop_roundtrip_exp
+  putStrLn "roundtrip_val"
+  QC.quickCheck prop_roundtrip_val
+--   putStrLn "roundtrip_type"
+--   QC.quickCheck prop_roundtrip_type
+--   putStrLn "roundtrip_exp"
+--   QC.quickCheck prop_roundtrip_exp
   putStrLn "\n**typechecker qc tests**\n"
   typecheckerAllQC
   putStrLn "\n**unit tests**\n"
