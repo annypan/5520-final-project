@@ -131,6 +131,8 @@ testDoesExpressionMatchType :: Test
 testDoesExpressionMatchType = 
     TestList
     [
+        S.evalState (doesExpressionMatchType (Val (BoolVal True)) (PrimitiveType BoolType)) Map.empty ~?= Success,
+        S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) (PrimitiveType BoolType)) Map.empty ~?= Failure,
         S.evalState (doesExpressionMatchType (Var (Name "x")) (PrimitiveType BoolType)) (Map.fromList [("x", PrimitiveType BoolType)]) ~?= Success,
         S.evalState (doesExpressionMatchType (Var (Name "x")) (PrimitiveType BoolType)) Map.empty ~?= Unknown,
         S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", PrimitiveType BoolType)]) ~?= Success,

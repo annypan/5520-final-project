@@ -183,6 +183,7 @@ instance Arbitrary Bop where
 wAssign :: Block
 wAssign = Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))]
 
+-- assignConflict.js
 wAssignConflict :: Block
 wAssignConflict = 
   Block [

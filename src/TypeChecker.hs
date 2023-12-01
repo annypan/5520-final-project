@@ -215,16 +215,20 @@ checkStatement (Assign var e) = do
                             S.put (Map.insert name (PrimitiveType (getType value)) store)
                             return result
                         _ -> return result
-                Nothing -> return Success
+                Nothing -> 
+                    case e of
+                        Val value -> do
+                            S.put (Map.insert name (PrimitiveType (getType value)) store)
+                            return Success
+                        _ -> return Success
         _ -> return Unknown
 checkStatement _ = undefined
 
-
-checker :: String -> IO [CheckResult]
+checker :: String -> IO ([CheckResult], TypeDeclaration)
 checker s = do
     res <- parseJSFile s
     case res of
-        Left err -> print err >> return []
-        Right (Block statements) -> -- TODO: should pass the previous store to the next statement
-            let (results, _) = S.runState (mapM checkStatement statements) initialStore 
-            in return results
+        Left err -> print err >> return ([], initialStore)
+        Right (Block statements) ->
+            let (results, td) = S.runState (mapM checkStatement statements) initialStore 
+            in return (results, td)
