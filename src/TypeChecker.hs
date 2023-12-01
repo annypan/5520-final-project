@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import State (State)
 import qualified State as S
 import qualified Data.Set as Set
+import FlowParser
 
 type TypeDeclaration = Map Name Type
 
@@ -198,3 +199,32 @@ doesExpressionMatchType (Op2 e1 bop e2) t =
         _ -> return Unknown
 doesExpressionMatchType (Call fn es) t = undefined
 
+initialStore :: TypeDeclaration
+initialStore = Map.empty
+
+checkStatement :: Statement -> State TypeDeclaration CheckResult
+checkStatement (Assign var e) = do
+    store <- S.get
+    case var of
+        Name name -> do
+            case store !? name of
+                Just t -> do
+                    result <- doesExpressionMatchType e t -- t already exists, check if e matches t
+                    case e of
+                        Val value -> do
+                            S.put (Map.insert name (PrimitiveType (getType value)) store)
+                            return result
+                        _ -> return result
+                Nothing -> return Success
+        _ -> return Unknown
+checkStatement _ = undefined
+
+
+checker :: String -> IO [CheckResult]
+checker s = do
+    res <- parseJSFile s
+    case res of
+        Left err -> print err >> return []
+        Right (Block statements) -> -- TODO: should pass the previous store to the next statement
+            let (results, _) = S.runState (mapM checkStatement statements) initialStore 
+            in return results

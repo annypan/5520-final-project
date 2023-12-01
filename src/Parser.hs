@@ -23,6 +23,7 @@ module Parser
     many,
     some,
     (<|>),
+    parseFromFile,
   )
 where
 
@@ -32,6 +33,8 @@ import Data.Char
 import Data.Foldable (asum)
 import Text.Read (readMaybe)
 import Prelude hiding (filter)
+import qualified System.IO as IO
+import qualified System.IO.Error as IO
 
 newtype Parser a = P {doParse :: String -> Maybe (a, String)}
 
@@ -161,3 +164,13 @@ sepBy p sep = sepBy1 p sep <|> pure []
 --   Returns a list of values returned by @p@.
 sepBy1 :: Parser a -> Parser sep -> Parser [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+
+parseFromFile :: Parser a -> String -> IO (Either ParseError a)
+parseFromFile parser filename = do
+  IO.catchIOError
+    (do
+        handle <- IO.openFile filename IO.ReadMode
+        str <- IO.hGetContents handle
+        pure $ parse parser str)
+    (\e ->
+        pure $ Left $ "Error:" ++ show e)

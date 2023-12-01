@@ -43,6 +43,9 @@ valueP =
     P.<|> undefinedValP
     P.<|> nullValP
 
+-- >>> P.parse (P.many valueP) "true false null undefined 12 \"str\""
+-- Right [BoolVal True,BoolVal False,NullVal,UndefinedVal,NumberVal 12,StringVal "str"]
+
 -- >>> P.parse (P.many boolValP) "true false\n true"
 -- Right [BoolVal True,BoolVal False,BoolVal True]
 boolValP :: Parser Value
@@ -73,7 +76,6 @@ stringValP =
           <* P.string "\""
       )
 
--- TODO: debug this (? definition of Object)
 objectValP :: Parser Value
 objectValP = ObjectVal <$> wsP (braces (Map.fromList <$> pairsP))
 
@@ -232,7 +234,7 @@ primitivetypeP =
     P.<|> constP "undefined" UndefinedType
     P.<|> constP "empty" EmptyType
     P.<|> constP "any" AnyType
-    -- TODO: add object primitive type
+    P.<|> constP "object" ObjectType
     P.<|> constP "void" VoidType
 
 -- | Parser for types
@@ -271,6 +273,9 @@ assignP = Assign <$>
 -- >>> P.parse assignP "const x = 1;"
 -- Right (Assign (Name "x") (Val (NumberVal 1)))
 
+-- >>> P.parse assignP "const x = false;"
+-- Right (Assign (Name "x") (Val (BoolVal False)))
+
 -- >>> P.parse assignP "var x = \"str\";"
 -- Right (Assign (Name "x") (Val (StringVal "str")))
 
@@ -285,5 +290,23 @@ emptyP = Empty <$ stringP ";"
 blockP :: Parser Block
 blockP = Block <$> P.sepBy statementP (stringP ";")
 
--- >>> P.parse blockP "const x = True; const y = False; y = -x"
--- Right (Block [Assign (Name "x") (Var (Name "True")),Assign (Name "y") (Var (Name "False"))])
+-- >>> P.parse blockP "const x = true; const y = false; y = -x"
+-- Right (Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))])
+
+parseJSFile :: String -> IO (Either P.ParseError Block)
+parseJSFile = P.parseFromFile blockP
+
+tParseFiles :: Test
+tParseFiles = 
+  "parse files" ~:
+    TestList
+      [
+        "assign" ~: p "js/assign.js" wAssign,
+        "assignConflict" ~: p "js/assignConflict.js" wAssignConflict
+      ]
+    where 
+      p fn ast = do
+        result <- parseJSFile fn
+        case result of
+          Left _ -> assert False
+          Right ast' -> assert (ast == ast')

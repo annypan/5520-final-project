@@ -178,3 +178,14 @@ instance Arbitrary Bop where
 --   shrink (Op1 uop e) = Op1 <$> pure uop <*> shrink e
 --   shrink (Op2 e1 bop e2) = Op2 <$> shrink e1 <*> pure bop <*> shrink e2
 --   shrink (Call fn es) = Call <$> shrink fn <*> shrink es
+
+-- assign.js
+wAssign :: Block
+wAssign = Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))]
+
+wAssignConflict :: Block
+wAssignConflict = 
+  Block [
+    Assign (Name "x") (Val (BoolVal True)),
+    Assign (Name "y") (Val (BoolVal False)),
+    Assign (Name "x") (Val (NumberVal 1))]

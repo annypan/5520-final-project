@@ -1,0 +1,1 @@
+const x = true; const y = false; const x = 1;
