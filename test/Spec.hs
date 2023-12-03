@@ -44,7 +44,7 @@ prop_type_as_itself t = isPrimitive t QC.==> canBeUsedAsType t t
 
 -- t1 <= t2, t2 <= t3 => t1 <= t3
 prop_type_is_transitive :: Type -> Type -> Type -> QC.Property
-prop_type_is_transitive t1 t2 t3 = 
+prop_type_is_transitive t1 t2 t3 =
     canBeUsedAsType t1 t2 && canBeUsedAsType t2 t3 QC.==> canBeUsedAsType t1 t3
 
 -- AnyType matches any uop
@@ -108,10 +108,17 @@ testGetType =
             getType (BoolVal True) ~?= BoolType,
             getType (StringVal "hello") ~?= StringType,
             getType (NumberVal 1) ~?= NumberType,
-            getType (ObjectVal Map.empty) ~?= ObjectType Map.empty,
+            getType (ObjectVal (Map.fromList [("x", NumberVal 1), ("y", StringVal "ans")]))
+                ~?= ObjectType (Map.fromList [("x", NumberType), ("y", StringType)]),
             getType UndefinedVal ~?= UndefinedType,
             getType NullVal ~?= NullType
         ]
+
+objectVar :: Expression
+objectVar = Val (ObjectVal (Map.fromList [("x", NumberVal 1)]))
+
+objectVarLayered :: Expression
+objectVarLayered = Val (ObjectVal (Map.fromList [("x", NumberVal 1), ("y", ObjectVal (Map.fromList [("z", NumberVal 2)]))]))
 
 testDoesExpressionMatchType :: Test
 testDoesExpressionMatchType =
@@ -120,10 +127,13 @@ testDoesExpressionMatchType =
         S.evalState (doesExpressionMatchType (Val (BoolVal True)) BoolType) Map.empty ~?= Success,
         S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) BoolType) Map.empty ~?= Failure,
         S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", BoolType)]) ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty ~?= Unknown,
+        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty ~?= Failure,
         S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", BoolType)]) ~?= Success,
         S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)]) ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure
+        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure,
+        S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty ~?= Success,
+        S.evalState (doesExpressionMatchType (Var (Dot objectVar "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
+        S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVar "y")) "z")) NumberType) Map.empty ~?= Success
     ]
 
 testCheckStatement :: Test

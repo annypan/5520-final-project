@@ -143,20 +143,43 @@ doesBopMatchType bop t1 t2 = case bop of
         (StringType, ObjectType _) -> True
         _ -> False
 
+-- Checks if a binary operator can be used with given values
 doesBopMatchValue :: Bop -> Value -> Value -> Bool
 doesBopMatchValue bop v1 v2 = doesBopMatchType bop (getType v1) (getType v2)
+
+-- Resolves the type of a variable
+resolveVarType :: Var -> State TypeDeclaration (Maybe Type)
+resolveVarType (Name name) = do
+    store <- S.get
+    case store !? name of
+        Just t -> return (Just t)
+        Nothing -> return Nothing
+resolveVarType (Dot exp name) = do
+    store <- S.get
+    case exp of
+        Val (ObjectVal obj) ->
+            case obj !? name of
+                Just v -> return (Just (getType v))
+                Nothing -> return Nothing
+        Var var -> do
+            t <- resolveVarType var
+            case t of
+                Just (ObjectType obj) ->
+                    case obj !? name of
+                        Just t -> return (Just t)
+                        Nothing -> return Nothing
+                _ -> return Nothing
+        _ -> return Nothing
+resolveVarType (Proj exp name) = resolveVarType (Dot exp name)
 
 -- Checks if an expression can be used as a given type
 doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
 doesExpressionMatchType (Val value) t = return (boolToCheckResult (doesValueMatchType value t))
-doesExpressionMatchType (Var var) t =
-    case var of
-        Name name -> do
-            store <- S.get
-            case store !? name of
-                Just t' -> return (boolToCheckResult (canBeUsedAsType t' t))
-                Nothing -> return Unknown -- no static type info, do not raise error
-        _ -> return Unknown
+doesExpressionMatchType (Var var) t = do
+    res <- resolveVarType var
+    case res of
+        Just t' -> return (boolToCheckResult (canBeUsedAsType t' t))
+        Nothing -> return Failure
 doesExpressionMatchType (Op1 uop e) t =
     case e of
         Val value -> return (boolToCheckResult (doesUopMatchValue uop value))
