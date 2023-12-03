@@ -21,114 +21,102 @@ boolToCheckResult :: Bool -> CheckResult
 boolToCheckResult True = Success
 boolToCheckResult False = Failure
 
--- Checks if a value can be used as a given primitive type
-doesValueMatchPrimitiveType :: Value -> PrimitiveType -> Bool
-doesValueMatchPrimitiveType (BoolVal _) BoolType = True
-doesValueMatchPrimitiveType (StringVal _) StringType = True
-doesValueMatchPrimitiveType (NumberVal _) NumberType = True
-doesValueMatchPrimitiveType (ObjectVal _) ObjectType = True
-doesValueMatchPrimitiveType UndefinedVal UndefinedType = True
-doesValueMatchPrimitiveType NullVal NullType = True
-doesValueMatchPrimitiveType _ AnyType = True
-doesValueMatchPrimitiveType _ _ = False
+-- Checks if a type is a primitive type
+isPrimitive :: Type -> Bool
+isPrimitive BoolType = True
+isPrimitive StringType = True
+isPrimitive NumberType = True
+isPrimitive NullType = True
+isPrimitive UndefinedType = True
+isPrimitive _ = False
 
 -- Checks if a value can be used as a given type
-doesValueMatchType :: Value -> Type -> CheckResult
-doesValueMatchType value (PrimitiveType t) =
-    boolToCheckResult (doesValueMatchPrimitiveType value t)
+doesValueMatchType :: Value -> Type -> Bool
+doesValueMatchType (BoolVal _) BoolType = True
+doesValueMatchType (StringVal _) StringType = True
+doesValueMatchType (NumberVal _) NumberType = True
+doesValueMatchType UndefinedVal UndefinedType = True
+doesValueMatchType NullVal NullType = True
+doesValueMatchType _ AnyType = True
 doesValueMatchType value (UnionType types) =
-    boolToCheckResult (any (doesValueMatchPrimitiveType value) types)
+    any (doesValueMatchType value) types
 doesValueMatchType value (MaybeType t) =
-    boolToCheckResult
-        (doesValueMatchPrimitiveType value t
-        || doesValueMatchPrimitiveType value UndefinedType
-        || doesValueMatchPrimitiveType value NullType
-        )
+    doesValueMatchType value t
+        || doesValueMatchType value UndefinedType
+        || doesValueMatchType value NullType
+doesValueMatchType (ObjectVal obj) (ObjectType typeMap)
+    = all (\(name, value) -> case typeMap !? name of
+        Just t -> doesValueMatchType value t
+        Nothing -> False
+        ) (Map.toList obj)
+doesValueMatchType value (FunctionType args ret) = False
+doesValueMatchType _ _ = False
+
+unwrapMaybeType :: Type -> Type
+unwrapMaybeType (MaybeType t) = unwrapMaybeType t
+unwrapMaybeType t = t
 
 -- Checks if a type can be used when another type is expected
 canBeUsedAsType :: Type -> Type -> Bool
-canBeUsedAsType _ (PrimitiveType AnyType) = True
-canBeUsedAsType (PrimitiveType t1) (PrimitiveType t2) = t1 == t2
-canBeUsedAsType (PrimitiveType t1) (UnionType ts) =
-    any (canBeUsedAsType (PrimitiveType t1) . PrimitiveType) ts
-canBeUsedAsType t1'@(PrimitiveType t1) t2'@(MaybeType t2) =
-    t1 == t2 || t1 == UndefinedType || t1 == NullType
-canBeUsedAsType (UnionType ts1) (UnionType ts2) = 
+canBeUsedAsType _ AnyType = True
+canBeUsedAsType (UnionType ts1) (UnionType ts2) =
     Set.fromList ts1 `Set.isSubsetOf` Set.fromList ts2
-canBeUsedAsType (UnionType ts1) (MaybeType t2) = 
+canBeUsedAsType (UnionType ts1) (MaybeType t2) =
     Set.fromList ts1 `Set.isSubsetOf` Set.fromList [t2, UndefinedType, NullType]
-canBeUsedAsType (MaybeType t1) (UnionType ts2) = 
+canBeUsedAsType (MaybeType t1) (UnionType ts2) =
     Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
-canBeUsedAsType (MaybeType t1) (MaybeType t2) = t1 == t2
-canBeUsedAsType _ _ = False
+canBeUsedAsType (MaybeType t1) (MaybeType t2) = 
+    let t1' = unwrapMaybeType t1
+        t2' = unwrapMaybeType t2
+    in t1' == t2' || t1' == UndefinedType || t1' == NullType || t2' == AnyType
+canBeUsedAsType t1 (UnionType ts) = t1 `elem` ts
+canBeUsedAsType t1 (MaybeType t2) = t1 == t2 || t1 == UndefinedType || t1 == NullType || t2 == AnyType
+canBeUsedAsType (FunctionType args1 ret1) (FunctionType args2 ret2) =
+    args1 == args2 && ret1 == ret2
+canBeUsedAsType (ObjectType t1) (ObjectType t2) = Map.isSubmapOf t1 t2
+canBeUsedAsType t1 t2 = t1 == t2
 
--- Gets the primitive type of a value
-getType :: Value -> PrimitiveType
+-- Gets the type of a value
+getType :: Value -> Type
 getType (BoolVal _) = BoolType
 getType (StringVal _) = StringType
 getType (NumberVal _) = NumberType
-getType (ObjectVal _) = ObjectType
+getType (ObjectVal obj) = ObjectType (Map.map getType obj)
 getType UndefinedVal = UndefinedType
 getType NullVal = NullType
 
 -- Checks if a unary operator can be used with a given type
 doesUopMatchType :: Uop -> Type -> Bool
-doesUopMatchType Neg (PrimitiveType t) = t == NumberType || t == AnyType
-doesUopMatchType Neg (UnionType ts) = 
+doesUopMatchType Neg (UnionType ts) =
     Set.fromList ts `Set.isSubsetOf` Set.fromList [NumberType, AnyType]
-doesUopMatchType Neg (MaybeType t) = False
-doesUopMatchType Not (PrimitiveType t) = t /= VoidType
-doesUopMatchType Not (UnionType ts) = all (doesUopMatchType Not . PrimitiveType) ts
-doesUopMatchType Not (MaybeType t) = doesUopMatchType Not (PrimitiveType t)
+doesUopMatchType Neg t = t == NumberType || t == AnyType
+doesUopMatchType Not t = True
 doesUopMatchType TypeOf _ = True
 
 -- Checks if a unary operator can be used with a given value
 doesUopMatchValue :: Uop -> Value -> Bool
-doesUopMatchValue uop val = doesUopMatchType uop (PrimitiveType (getType val))
+doesUopMatchValue uop val = doesUopMatchType uop (getType val)
 
 -- Checks if an arithmetic operator can be used with given types
 doesArithMatchType :: Bop -> Type -> Type -> Bool
-doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2) = case (t1, t2) of
+doesArithMatchType arith t1 t2 = case (t1, t2) of
     (AnyType, _) -> True
     (_, AnyType) -> True
     (NumberType, NumberType) -> True
+    (UnionType ts1, UnionType ts2) ->
+        all (\t1 -> all (doesArithMatchType arith t1) ts2) ts1
     _ -> False
-doesArithMatchType arith (PrimitiveType t1) (UnionType ts2) =
-    all (doesArithMatchType arith (PrimitiveType t1) . PrimitiveType) ts2
-doesArithMatchType arith (PrimitiveType t1) (MaybeType t2) =
-    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
-doesArithMatchType arith (UnionType ts1) (PrimitiveType t2) =
-    all (doesArithMatchType arith (PrimitiveType t2) . PrimitiveType) ts1
-doesArithMatchType arith (UnionType ts1) (UnionType ts2) =
-    all (\t1 -> all (doesBopMatchType arith (PrimitiveType t1) . PrimitiveType) ts2) ts1
-doesArithMatchType arith (UnionType ts1) (MaybeType t2) =
-    all (doesArithMatchType arith (PrimitiveType t2) . PrimitiveType) ts1
-doesArithMatchType arith (MaybeType t1) (PrimitiveType t2) =
-    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
-doesArithMatchType arith (MaybeType t1) (UnionType ts2) =
-    all (doesArithMatchType arith (PrimitiveType t1) . PrimitiveType) ts2
-doesArithMatchType arith (MaybeType t1) (MaybeType t2) =
-    doesArithMatchType arith (PrimitiveType t1) (PrimitiveType t2)
 
+-- Checks if a comparison operator can be used with given types
 doesCompMatchType :: Bop -> Type -> Type -> Bool
-doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2) = 
-    t1 == t2 || t1 == AnyType || t2 == AnyType
-doesCompMatchType bop (PrimitiveType t1) (UnionType ts2) =
-    all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2
-doesCompMatchType bop (PrimitiveType t1) (MaybeType t2) =
-    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
-doesCompMatchType bop (UnionType ts1) (PrimitiveType t2) =
-    all (doesCompMatchType bop (PrimitiveType t2) . PrimitiveType) ts1
-doesCompMatchType bop (UnionType ts1) (UnionType ts2) =
-    all (\t1 -> all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2) ts1
-doesCompMatchType bop (UnionType ts1) (MaybeType t2) =
-    all (doesCompMatchType bop (PrimitiveType t2) . PrimitiveType) ts1
-doesCompMatchType bop (MaybeType t1) (PrimitiveType t2) =
-    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
-doesCompMatchType bop (MaybeType t1) (UnionType ts2) =
-    all (doesCompMatchType bop (PrimitiveType t1) . PrimitiveType) ts2
-doesCompMatchType bop (MaybeType t1) (MaybeType t2) =
-    doesCompMatchType bop (PrimitiveType t1) (PrimitiveType t2)
+doesCompMatchType bop t1 t2 = case (t1, t2) of
+    (AnyType, _) -> True
+    (_, AnyType) -> True
+    (NumberType, NumberType) -> True
+    (StringType, StringType) -> True
+    (UnionType ts1, UnionType ts2) ->
+        all (\t1 -> all (doesCompMatchType bop t1) ts2) ts1
+    _ -> False
 
 -- Checks if a binary operator can be used with given types
 doesBopMatchType :: Bop -> Type -> Type -> Bool
@@ -145,22 +133,22 @@ doesBopMatchType bop t1 t2 = case bop of
     Lt -> doesCompMatchType bop t1 t2
     Le -> doesCompMatchType bop t1 t2
     Concat -> case (t1, t2) of
-        (PrimitiveType AnyType, _) -> True
-        (_, PrimitiveType AnyType) -> True
-        (PrimitiveType StringType, PrimitiveType StringType) -> True
+        (AnyType, _) -> True
+        (_, AnyType) -> True
+        (StringType, StringType) -> True
         _ -> False
     In -> case (t1, t2) of
-        (PrimitiveType AnyType, _) -> True
-        (_, PrimitiveType AnyType) -> True
-        (PrimitiveType t1', PrimitiveType ObjectType) -> t1' == StringType || t1' == NumberType
+        (AnyType, _) -> True
+        (_, AnyType) -> True
+        (StringType, ObjectType _) -> True
         _ -> False
 
 doesBopMatchValue :: Bop -> Value -> Value -> Bool
-doesBopMatchValue bop v1 v2 = doesBopMatchType bop (PrimitiveType (getType v1)) (PrimitiveType (getType v2))
+doesBopMatchValue bop v1 v2 = doesBopMatchType bop (getType v1) (getType v2)
 
 -- Checks if an expression can be used as a given type
 doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
-doesExpressionMatchType (Val value) t = return (doesValueMatchType value t)
+doesExpressionMatchType (Val value) t = return (boolToCheckResult (doesValueMatchType value t))
 doesExpressionMatchType (Var var) t =
     case var of
         Name name -> do
@@ -189,7 +177,7 @@ doesExpressionMatchType (Op2 e1 bop e2) t =
         (Var (Name name), Val value) -> do
             store <- S.get
             case store !? name of
-                Just t' -> return (boolToCheckResult (doesBopMatchType bop t' (PrimitiveType (getType value))))
+                Just t' -> return (boolToCheckResult (doesBopMatchType bop t' (getType value)))
                 Nothing -> return Unknown
         (Val value, Var (Name name)) -> do
             store <- S.get
@@ -212,13 +200,13 @@ checkStatement (Assign var e) = do
                     result <- doesExpressionMatchType e t -- t already exists, check if e matches t
                     case e of
                         Val value -> do
-                            S.put (Map.insert name (PrimitiveType (getType value)) store)
+                            S.put (Map.insert name (getType value) store)
                             return result
                         _ -> return result
-                Nothing -> 
+                Nothing ->
                     case e of
                         Val value -> do
-                            S.put (Map.insert name (PrimitiveType (getType value)) store)
+                            S.put (Map.insert name (getType value) store)
                             return Success
                         _ -> return Success
         _ -> return Unknown
@@ -230,5 +218,5 @@ checker s = do
     case res of
         Left err -> print err >> return ([], initialStore)
         Right (Block statements) ->
-            let (results, td) = S.runState (mapM checkStatement statements) initialStore 
+            let (results, td) = S.runState (mapM checkStatement statements) initialStore
             in return (results, td)

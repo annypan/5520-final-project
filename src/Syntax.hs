@@ -51,7 +51,7 @@ data Value
   | NullVal
   deriving (Eq, Show, Ord)
 
-data PrimitiveType
+data Type
   = BoolType
   | StringType
   | NumberType
@@ -59,14 +59,10 @@ data PrimitiveType
   | UndefinedType
   | EmptyType -- https://flow.org/en/docs/types/empty/
   | AnyType -- https://flow.org/en/docs/types/any/
-  | ObjectType (Map String Type)
-  deriving (Eq, Show, Ord)
-
-data Type
-  = PrimitiveType PrimitiveType
-  | UnionType [PrimitiveType]
-  | MaybeType PrimitiveType
+  | UnionType [Type]
+  | MaybeType Type
   | FunctionType [Type] Type
+  | ObjectType (Map String Type)
   deriving (Eq, Show, Ord)
 
 data Uop
@@ -122,7 +118,10 @@ instance Arbitrary Value where
   -- shrink (ObjectVal o) = ObjectVal <$> shrink o
   shrink _ = []
 
-instance Arbitrary PrimitiveType where
+genUnionTypeCandidate :: Gen Type
+genUnionTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
+
+instance Arbitrary Type where
   arbitrary = 
     QC.oneof
       [ pure BoolType
@@ -132,21 +131,22 @@ instance Arbitrary PrimitiveType where
       , pure UndefinedType
       , pure EmptyType
       , pure AnyType
-      , pure ObjectType
-      , pure VoidType
-      ]
-  shrink = const []
-
-instance Arbitrary Type where
-  arbitrary = 
-    QC.oneof
-      [ PrimitiveType <$> arbitrary
-      , UnionType <$> arbitrary
+      , UnionType <$> QC.listOf1 genUnionTypeCandidate
       , MaybeType <$> arbitrary
+      -- , FunctionType <$> arbitrary <*> arbitrary -- TODO: add later
+      -- , ObjectType <$> arbitrary -- TODO: add later
       ]
-  shrink (PrimitiveType t) = []
+  shrink BoolType = []
+  shrink StringType = []
+  shrink NumberType = []
+  shrink NullType = []
+  shrink UndefinedType = []
+  shrink EmptyType = []
+  shrink AnyType = []
   shrink (UnionType ts) = UnionType <$> shrink ts
   shrink (MaybeType t) = MaybeType <$> shrink t
+  shrink (FunctionType args ret) = FunctionType <$> shrink args <*> shrink ret
+  shrink (ObjectType map) = ObjectType <$> shrink map
 
 instance Arbitrary Uop where
   arbitrary = QC.elements [minBound .. maxBound]

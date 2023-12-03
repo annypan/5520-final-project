@@ -119,8 +119,8 @@ expP = compP
 -- >>>  P.parse (P.many varP) "x y z"
 -- Right [Name "x",Name "y",Name "z"]
 
--- >>> P.parse varP "(x.y[1]).z"
--- Right (Dot (Var (Proj (Var (Dot (Var (Name "x")) "y")) (Val (NumberVal 1)))) "z")
+-- >>> P.parse varP "(x.y[s]).z"
+-- Right (Dot (Var (Proj (Var (Dot (Var (Name "x")) "y")) "s")) "z")
 -- >>> P.parse varP "x.y.z"
 -- Right (Dot (Var (Dot (Var (Name "x")) "y")) "z")
 varP :: Parser Var
@@ -135,7 +135,7 @@ varP = mkVar <$> prefixP <*> P.some indexP P.<|> Name <$> nameP
     indexP :: Parser (Expression -> Var)
     indexP =
       flip Dot <$> (P.string "." *> nameP)
-        P.<|> flip Proj <$> brackets expP
+        P.<|> flip Proj <$> brackets nameP
 
 reserved :: [String]
 reserved =
@@ -235,46 +235,76 @@ bopP =
 
 -- | Parser for primitive types
 -- >>> P.parse (P.many primitivetypeP) "boolean \n string number null undefined empty any void"
--- Right [BoolType,StringType,NumberType,NullType,UndefinedType,EmptyType,AnyType,VoidType]
-primitivetypeP :: Parser PrimitiveType
+-- Right [BoolType,StringType,NumberType,NullType,UndefinedType,EmptyType,AnyType]
+primitivetypeP :: Parser Type
 primitivetypeP =
-  constP "boolean" BoolType
+  wsP (constP "boolean" BoolType
     P.<|> constP "string" StringType
     P.<|> constP "number" NumberType
     P.<|> constP "null" NullType
     P.<|> constP "undefined" UndefinedType
     P.<|> constP "empty" EmptyType
-    P.<|> constP "any" AnyType
-    P.<|> constP "object" ObjectType
-    P.<|> constP "void" VoidType
+    P.<|> constP "any" AnyType)
+
+pairTypeP :: Parser (Name, Type)
+pairTypeP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> typeP)
+
+pairsTypeP :: Parser [(Name, Type)]
+pairsTypeP = wsP (P.sepBy pairTypeP (wsP (P.char ',')))
+
+objectTypeP :: Parser Type
+objectTypeP = wsP (ObjectType <$> braces (Map.fromList <$> pairsTypeP))
 
 -- | Parser for types
--- >>> P.parse (P.many typeP) "boolean | string ?number"
--- Right [UnionType [BoolType,StringType],MaybeType NumberType]
+-- >>> P.parse (P.many typeP) "string boolean | string ?number {x: number, y: number}"
+-- Right [StringType,UnionType [BoolType,StringType],MaybeType NumberType,ObjectType (fromList [("x",NumberType),("y",NumberType)])]
+
+-- >>> P.parse (typeP) "number"
+-- Right NumberType
 typeP :: Parser Type
 typeP =
   maybetypeP
-    P.<|> uniontypeP
-    P.<|> PrimitiveType <$> primitivetypeP
+  P.<|> uniontypeP
+  P.<|> primitivetypeP
+    P.<|> objectTypeP >>= \t -> case t of
+      UnionType [m] -> return m -- remove redundant union
+      _ -> return t
 
 -- >>> P.parse (P.many uniontypeP) "boolean | string | number"
 -- Right [UnionType [BoolType,StringType,NumberType]]
 
 uniontypeP :: Parser Type
-uniontypeP = UnionType <$> P.sepBy1 primitivetypeP (wsP (P.char '|'))
+uniontypeP = wsP (UnionType <$> P.sepBy1 primitivetypeP (wsP (P.char '|')))
 
 -- >>> P.parse (P.many maybetypeP) "?boolean ?string ?number"
 -- Right [MaybeType BoolType,MaybeType StringType,MaybeType NumberType]
 
 maybetypeP :: Parser Type
-maybetypeP = MaybeType <$> (P.char '?' *> primitivetypeP)
+maybetypeP = wsP (MaybeType <$> (P.char '?' *> primitivetypeP))
 
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
+-- /Users/annipan/Developer/courses/CIS-552/5520-final-project/src/FlowParser.hs:138:38: error:
+--     • Couldn't match type ‘Expression’ with ‘[Char]’
+--       Expected: Parser Name
+--         Actual: Parser Expression
+--     • In the first argument of ‘brackets’, namely ‘expP’
+--       In the second argument of ‘(<$>)’, namely ‘brackets expP’
+--       In the second argument of ‘(P.<|>)’, namely
+--         ‘flip Proj <$> brackets expP’
+-- (deferred type error)
 
 -- | Parser for function calls
 
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
--- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
+-- /Users/annipan/Developer/courses/CIS-552/5520-final-project/src/FlowParser.hs:138:38: error:
+--     • Couldn't match type ‘Expression’ with ‘[Char]’
+--       Expected: Parser Name
+--         Actual: Parser Expression
+--     • In the first argument of ‘brackets’, namely ‘expP’
+--       In the second argument of ‘(<$>)’, namely ‘brackets expP’
+--       In the second argument of ‘(P.<|>)’, namely
+--         ‘flip Proj <$> brackets expP’
+-- (deferred type error)
 callP :: Parser Expression
 callP = Call <$> funcNameP <*> parens (P.sepBy expP (wsP (P.char ',')))
 
