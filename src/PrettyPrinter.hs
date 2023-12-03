@@ -66,7 +66,8 @@ instance PP Var where
   pp (Proj (Var v) k) = pp v <> PP.brackets (pp k)
   pp (Proj t k) = PP.parens (pp t) <> PP.brackets (pp k)
 
-instance PP PrimitiveType where
+
+instance PP Type where
   pp BoolType = PP.text "bool"
   pp StringType = PP.text "string"
   pp NumberType = PP.text "number"
@@ -74,12 +75,10 @@ instance PP PrimitiveType where
   pp UndefinedType = PP.text "undefined"
   pp EmptyType = PP.text "empty"
   pp AnyType = PP.text "any"
-  pp ObjectType = PP.text "object"
-
-instance PP Type where
-  pp (PrimitiveType t) = pp t
+  pp (ObjectType map) = PP.text "object"
   pp (UnionType ts) = PP.hsep (PP.punctuate PP.comma (fmap pp ts))
   pp (MaybeType t) = PP.text "?" <> pp t
+  pp (FunctionType args ret) = PP.text "function"
 
 instance PP Statement where
   pp (Assign var e) = pp var <+> PP.text "=" <+> pp e
@@ -90,7 +89,7 @@ instance PP Statement where
   pp (For s1 e1 e2 s2) =
     PP.text "for" -- TODO: refine
   pp (Return e) = PP.text "return" <+> pp e
-  pp (FunctionDef name args retType block) =
+  pp (FunctionDef funcName funcType block) =
     PP.text "function" -- TODO: refine
 
 instance PP Block where
