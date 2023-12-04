@@ -121,6 +121,9 @@ instance Arbitrary Value where
 genUnionTypeCandidate :: Gen Type
 genUnionTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
 
+genMaybeTypeCandidate :: Gen Type
+genMaybeTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
+
 instance Arbitrary Type where
   arbitrary = 
     QC.oneof
@@ -131,8 +134,9 @@ instance Arbitrary Type where
       , pure UndefinedType
       , pure EmptyType
       , pure AnyType
-      , UnionType <$> QC.listOf1 genUnionTypeCandidate
-      , MaybeType <$> arbitrary
+      , UnionType <$> (QC.listOf1 genUnionTypeCandidate 
+        >>= \t -> if length t == 1 then arbitrary else pure t)
+      , MaybeType <$> genMaybeTypeCandidate
       -- , FunctionType <$> arbitrary <*> arbitrary -- TODO: add later
       -- , ObjectType <$> arbitrary -- TODO: add later
       ]

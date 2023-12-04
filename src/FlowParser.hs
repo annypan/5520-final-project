@@ -283,15 +283,7 @@ maybetypeP :: Parser Type
 maybetypeP = wsP (MaybeType <$> (P.char '?' *> primitivetypeP))
 
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
--- /Users/annipan/Developer/courses/CIS-552/5520-final-project/src/FlowParser.hs:138:38: error:
---     • Couldn't match type ‘Expression’ with ‘[Char]’
---       Expected: Parser Name
---         Actual: Parser Expression
---     • In the first argument of ‘brackets’, namely ‘expP’
---       In the second argument of ‘(<$>)’, namely ‘brackets expP’
---       In the second argument of ‘(P.<|>)’, namely
---         ‘flip Proj <$> brackets expP’
--- (deferred type error)
+-- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
 
 -- | Parser for function calls
 

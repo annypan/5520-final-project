@@ -61,15 +61,19 @@ canBeUsedAsType :: Type -> Type -> Bool
 canBeUsedAsType _ AnyType = True
 canBeUsedAsType (UnionType ts1) (UnionType ts2) =
     Set.fromList ts1 `Set.isSubsetOf` Set.fromList ts2
-canBeUsedAsType (UnionType ts1) (MaybeType t2) =
+    || AnyType `elem` ts2
+canBeUsedAsType t1@(UnionType ts1) (MaybeType t2) =
     Set.fromList ts1 `Set.isSubsetOf` Set.fromList [t2, UndefinedType, NullType]
+    || t2 == AnyType
+    || t1 == t2
 canBeUsedAsType (MaybeType t1) (UnionType ts2) =
     Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
+    || AnyType `elem` ts2
 canBeUsedAsType (MaybeType t1) (MaybeType t2) = 
     let t1' = unwrapMaybeType t1
         t2' = unwrapMaybeType t2
     in t1' == t2' || t1' == UndefinedType || t1' == NullType || t2' == AnyType
-canBeUsedAsType t1 (UnionType ts) = t1 `elem` ts
+canBeUsedAsType t1 (UnionType ts) = t1 `elem` ts || AnyType `elem` ts
 canBeUsedAsType t1 (MaybeType t2) = t1 == t2 || t1 == UndefinedType || t1 == NullType || t2 == AnyType
 canBeUsedAsType (FunctionType args1 ret1) (FunctionType args2 ret2) =
     args1 == args2 && ret1 == ret2
@@ -164,10 +168,7 @@ resolveVarType (Dot exp name) = do
         Var var -> do
             t <- resolveVarType var
             case t of
-                Just (ObjectType obj) ->
-                    case obj !? name of
-                        Just t -> return (Just t)
-                        Nothing -> return Nothing
+                Just (ObjectType obj) -> return (obj !? name)
                 _ -> return Nothing
         _ -> return Nothing
 resolveVarType (Proj exp name) = resolveVarType (Dot exp name)

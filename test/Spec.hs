@@ -6,6 +6,7 @@ import Parser qualified as P
 import FlowParser
 import PrettyPrinter
 import qualified Data.Map as Map
+import Data.Map (Map)
 
 import qualified Data.Set as Set
 import TypeChecker
@@ -38,9 +39,8 @@ prop_all_type_match_any_type t = canBeUsedAsType t AnyType
 prop_type_as_maybe_type :: Type -> Bool
 prop_type_as_maybe_type t = canBeUsedAsType t (MaybeType t)
 
--- A type can be used as itself
-prop_type_as_itself :: Type -> QC.Property
-prop_type_as_itself t = isPrimitive t QC.==> canBeUsedAsType t t
+prop_type_as_itself :: Type -> Bool
+prop_type_as_itself t = canBeUsedAsType t t
 
 -- t1 <= t2, t2 <= t3 => t1 <= t3
 prop_type_is_transitive :: Type -> Type -> Type -> QC.Property
@@ -83,8 +83,7 @@ typecheckerAllQC = do
 -- unit tests
 test_unit_all :: IO Counts
 test_unit_all =
-    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testCheckStatement]
-
+    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testResolveVarType, testCheckStatement]
 
 testCanBeUsedAsType :: Test
 testCanBeUsedAsType =
@@ -120,6 +119,22 @@ objectVar = Val (ObjectVal (Map.fromList [("x", NumberVal 1)]))
 objectVarLayered :: Expression
 objectVarLayered = Val (ObjectVal (Map.fromList [("x", NumberVal 1), ("y", ObjectVal (Map.fromList [("z", NumberVal 2)]))]))
 
+objectTypeLayered :: Type
+objectTypeLayered = ObjectType (Map.fromList [("x", NumberType), ("y", ObjectType (Map.fromList [("z", NumberType)]))])
+
+mapLayered :: Map String Type
+mapLayered = Map.fromList [("x", NumberType), ("y", ObjectType (Map.fromList [("z", NumberType)]))]
+
+testResolveVarType :: Test
+testResolveVarType = 
+    TestList
+    [
+        S.evalState (resolveVarType (Name "x")) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
+        S.evalState (resolveVarType (Dot (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
+        S.evalState (resolveVarType (Proj (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
+        S.evalState (resolveVarType (Name "k")) mapLayered ~?= Nothing
+    ]
+
 testDoesExpressionMatchType :: Test
 testDoesExpressionMatchType =
     TestList
@@ -132,8 +147,8 @@ testDoesExpressionMatchType =
         S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)]) ~?= Success,
         S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure,
         S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Dot objectVar "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVar "y")) "z")) NumberType) Map.empty ~?= Success
+        S.evalState (doesExpressionMatchType (Var (Dot objectVarLayered "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
+        S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty ~?= Success
     ]
 
 testCheckStatement :: Test
