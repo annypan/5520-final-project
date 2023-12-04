@@ -69,7 +69,7 @@ canBeUsedAsType t1@(UnionType ts1) (MaybeType t2) =
 canBeUsedAsType (MaybeType t1) (UnionType ts2) =
     Set.fromList [t1, UndefinedType, NullType] `Set.isSubsetOf` Set.fromList ts2
     || AnyType `elem` ts2
-canBeUsedAsType (MaybeType t1) (MaybeType t2) = 
+canBeUsedAsType (MaybeType t1) (MaybeType t2) =
     let t1' = unwrapMaybeType t1
         t2' = unwrapMaybeType t2
     in t1' == t2' || t1' == UndefinedType || t1' == NullType || t2' == AnyType
@@ -195,6 +195,13 @@ resolveVarType (Dot exp name) = do
         _ -> return Nothing
 resolveVarType (Proj exp name) = resolveVarType (Dot exp name)
 
+getValidTypeList :: [Maybe Type] -> Maybe [Type]
+getValidTypeList [] = Just []
+getValidTypeList (Just t : ts) = case getValidTypeList ts of
+    Just ts' -> Just (t : ts')
+    Nothing -> Nothing
+getValidTypeList (Nothing : ts) = Nothing
+
 -- Synthesizes the type of an expression
 synthesizeType :: Expression -> State TypeDeclaration (Maybe Type)
 synthesizeType (Val value) = return (Just (getType value))
@@ -216,7 +223,20 @@ synthesizeType (Op2 e1 bop e2) = do
         (Just t1', Just t2') -> return (
             if doesBopMatchType bop t1' t2' then Just (getBopReturnType bop t1' t2') else Nothing)
         _ -> return Nothing
-synthesizeType (Call fn es) = undefined
+synthesizeType (Call fn es) = do
+    store <- S.get
+    case store !? fn of
+        Just (FunctionType args ret) -> do
+            ts <- mapM synthesizeType es
+            let sanitizedTs = getValidTypeList ts
+            case sanitizedTs of
+                Just sanitizedTs' ->
+                    return (
+                        if all (uncurry canBeUsedAsType) (zip args sanitizedTs')
+                        then Just ret
+                        else Nothing)
+                Nothing -> return Nothing
+        _ -> return Nothing
 
 -- Checks if an expression can be used as a given type
 doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
@@ -232,30 +252,31 @@ initialStore = Map.empty
 checkStatement :: Statement -> State TypeDeclaration CheckResult
 checkStatement (Assign var e) = do
     store <- S.get
-    case var of
-        Name name -> do
-            case store !? name of
-                Just t -> do
-                    result <- doesExpressionMatchType e t -- t already exists, check if e matches t
-                    case e of
-                        Val value -> do
-                            S.put (Map.insert name (getType value) store)
-                            return result
-                        _ -> return result
-                Nothing ->
-                    case e of
-                        Val value -> do
-                            S.put (Map.insert name (getType value) store)
+    varType <- resolveVarType var
+    case varType of
+        Just t -> do
+            doesExpressionMatchType e t
+        Nothing ->
+            case var of
+                Name name -> do
+                    expType <- synthesizeType e
+                    case expType of
+                        Just t -> do
+                            S.put (Map.insert name t store)
                             return Success
-                        _ -> return Success
-        _ -> return Unknown
+                        Nothing -> return Failure
+                _ -> return Unknown
 checkStatement _ = undefined
+
+runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
+runBlock (Block statements) = do
+    results <- mapM checkStatement statements
+    store <- S.get
+    return (results, store)
 
 checker :: String -> IO ([CheckResult], TypeDeclaration)
 checker s = do
     res <- parseJSFile s
     case res of
         Left err -> print err >> return ([], initialStore)
-        Right (Block statements) ->
-            let (results, td) = S.runState (mapM checkStatement statements) initialStore
-            in return (results, td)
+        Right (Block statements) -> return (S.evalState (runBlock (Block statements)) initialStore)

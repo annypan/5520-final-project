@@ -83,7 +83,7 @@ typecheckerAllQC = do
 -- unit tests
 test_unit_all :: IO Counts
 test_unit_all =
-    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testResolveVarType, testCheckStatement]
+    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testSynthesizeType, testResolveVarType, testCheckStatement, testRunBlock]
 
 testCanBeUsedAsType :: Test
 testCanBeUsedAsType =
@@ -151,6 +151,30 @@ testDoesExpressionMatchType =
         S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty ~?= Success
     ]
 
+testSynthesizeType :: Test
+testSynthesizeType = 
+    TestList
+    [
+        S.evalState (synthesizeType (Val (BoolVal True))) Map.empty ~?= Just BoolType,
+        S.evalState (synthesizeType (Val (ObjectVal Map.empty))) Map.empty ~?= Just (ObjectType Map.empty),
+        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", BoolType)]) ~?= Just BoolType,
+        S.evalState (synthesizeType (Var (Name "x"))) Map.empty ~?= Nothing,
+        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
+        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", UnionType [BoolType, NumberType])]) ~?= Just (UnionType [BoolType, NumberType]),
+        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
+        S.evalState (synthesizeType (Var (Dot objectVar "x"))) Map.empty ~?= Just NumberType,
+        S.evalState (synthesizeType (Var (Dot objectVarLayered "y"))) Map.empty ~?= Just (ObjectType (Map.fromList [("z", NumberType)])),
+        S.evalState (synthesizeType (Var (Dot (Var (Dot objectVarLayered "y")) "z"))) Map.empty ~?= Just NumberType,
+        S.evalState (synthesizeType (Op1 Not (Val (BoolVal True)))) Map.empty ~?= Just BoolType,
+        S.evalState (synthesizeType (Op1 Neg (Val (BoolVal True)))) Map.empty ~?= Nothing,
+        S.evalState (synthesizeType (Op1 Neg (Val (NumberVal 1)))) Map.empty ~?= Just NumberType,
+        S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
+        S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Nothing,
+        S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (NumberVal 2)))) Map.empty ~?= Just NumberType,
+        S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (BoolVal True)))) Map.empty ~?= Nothing,
+        S.evalState (synthesizeType (Call "f" [Val (NumberVal 1), Val (BoolVal True)])) (Map.fromList [("f", FunctionType [NumberType, BoolType] NumberType)]) ~?= Just NumberType
+    ]
+
 testCheckStatement :: Test
 testCheckStatement =
     TestList
@@ -159,6 +183,21 @@ testCheckStatement =
         S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= Failure
     ]
 
+testRunBlock :: Test
+testRunBlock =
+    TestList 
+    [ 
+        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "x") (Val (NumberVal 1))])) Map.empty ~?= ([Success, Failure], Map.fromList [("x", BoolType)]),
+        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True))])) (Map.fromList [("x", NumberType)]) ~?= ([Failure], Map.fromList [("x", NumberType)]),
+        S.evalState (runBlock (
+            Block [Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))), 
+                   Assign (Name "x") (Val (NumberVal 1))])) Map.empty 
+            ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))]),
+        S.evalState (runBlock (
+            Block [Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))), 
+                   Assign (Dot (Var (Name "x")) "y") (Val (StringVal "str"))])) Map.empty 
+            ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))])
+    ]
 main :: IO ()
 main = do
   putStrLn "roundtrip_val"
