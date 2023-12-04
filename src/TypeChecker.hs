@@ -101,6 +101,12 @@ doesUopMatchType TypeOf _ = True
 doesUopMatchValue :: Uop -> Value -> Bool
 doesUopMatchValue uop val = doesUopMatchType uop (getType val)
 
+-- Gets the return type of a unary operator, assuming the input type is valid
+getUopReturnType :: Uop -> Type -> Type
+getUopReturnType Neg t = t
+getUopReturnType Not _ = BoolType
+getUopReturnType TypeOf _ = StringType
+
 -- Checks if an arithmetic operator can be used with given types
 doesArithMatchType :: Bop -> Type -> Type -> Bool
 doesArithMatchType arith t1 t2 = case (t1, t2) of
@@ -151,6 +157,22 @@ doesBopMatchType bop t1 t2 = case bop of
 doesBopMatchValue :: Bop -> Value -> Value -> Bool
 doesBopMatchValue bop v1 v2 = doesBopMatchType bop (getType v1) (getType v2)
 
+getBopReturnType :: Bop -> Type -> Type -> Type
+getBopReturnType bop t1 t2 = case bop of
+    Plus -> t1
+    Minus -> t1
+    Times -> t1
+    Divide -> t1
+    Modulo -> t1
+    Eq -> BoolType
+    Neq -> BoolType
+    Gt -> BoolType
+    Ge -> BoolType
+    Lt -> BoolType
+    Le -> BoolType
+    Concat -> StringType
+    In -> BoolType
+
 -- Resolves the type of a variable
 resolveVarType :: Var -> State TypeDeclaration (Maybe Type)
 resolveVarType (Name name) = do
@@ -173,43 +195,36 @@ resolveVarType (Dot exp name) = do
         _ -> return Nothing
 resolveVarType (Proj exp name) = resolveVarType (Dot exp name)
 
--- Checks if an expression can be used as a given type
-doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
-doesExpressionMatchType (Val value) t = return (boolToCheckResult (doesValueMatchType value t))
-doesExpressionMatchType (Var var) t = do
+-- Synthesizes the type of an expression
+synthesizeType :: Expression -> State TypeDeclaration (Maybe Type)
+synthesizeType (Val value) = return (Just (getType value))
+synthesizeType (Var var) = do
     res <- resolveVarType var
     case res of
-        Just t' -> return (boolToCheckResult (canBeUsedAsType t' t))
+        Just t -> return (Just t)
+        Nothing -> return Nothing
+synthesizeType (Op1 uop e) = do
+    t <- synthesizeType e
+    case t of
+        Just t' -> return (
+            if doesUopMatchType uop t' then Just (getUopReturnType uop t') else Nothing)
+        Nothing -> return Nothing
+synthesizeType (Op2 e1 bop e2) = do
+    t1 <- synthesizeType e1
+    t2 <- synthesizeType e2
+    case (t1, t2) of
+        (Just t1', Just t2') -> return (
+            if doesBopMatchType bop t1' t2' then Just (getBopReturnType bop t1' t2') else Nothing)
+        _ -> return Nothing
+synthesizeType (Call fn es) = undefined
+
+-- Checks if an expression can be used as a given type
+doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResult
+doesExpressionMatchType e t = do
+    t' <- synthesizeType e
+    case t' of
+        Just t'' -> return (boolToCheckResult (canBeUsedAsType t'' t))
         Nothing -> return Failure
-doesExpressionMatchType (Op1 uop e) t =
-    case e of
-        Val value -> return (boolToCheckResult (doesUopMatchValue uop value))
-        Var (Name name) -> do
-            store <- S.get
-            case store !? name of
-                Just t' -> return (boolToCheckResult (doesUopMatchType uop t'))
-                Nothing -> return Unknown
-        _ -> return Unknown
-doesExpressionMatchType (Op2 e1 bop e2) t =
-    case (e1, e2) of
-        (Val value1, Val value2) -> return (boolToCheckResult (doesBopMatchValue bop value1 value2))
-        (Var (Name name1), Var (Name name2)) -> do
-            store <- S.get
-            case (store !? name1, store !? name2) of
-                (Just t1, Just t2) -> return (boolToCheckResult (doesBopMatchType bop t1 t2))
-                _ -> return Unknown
-        (Var (Name name), Val value) -> do
-            store <- S.get
-            case store !? name of
-                Just t' -> return (boolToCheckResult (doesBopMatchType bop t' (getType value)))
-                Nothing -> return Unknown
-        (Val value, Var (Name name)) -> do
-            store <- S.get
-            case store !? name of
-                Just t' -> undefined
-                Nothing -> return Unknown
-        _ -> return Unknown
-doesExpressionMatchType (Call fn es) t = undefined
 
 initialStore :: TypeDeclaration
 initialStore = Map.empty
