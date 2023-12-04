@@ -17,10 +17,10 @@ import qualified State as S
 prop_roundtrip_val :: Value -> Bool
 prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
 
-prop_roundtrip_type :: Type -> Bool -- TODO: debug
+prop_roundtrip_type :: Type -> Bool
 prop_roundtrip_type t = P.parse typeP (pretty t) == Right t
 
-prop_roundtrip_exp :: Expression -> Bool -- TODO: add Arbitrary for `Expression`
+prop_roundtrip_exp :: Expression -> Bool
 prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
 
 -- Any value can be used as AnyType
@@ -202,8 +202,8 @@ main :: IO ()
 main = do
   putStrLn "roundtrip_val"
   QC.quickCheck prop_roundtrip_val
---   putStrLn "roundtrip_type"
---   QC.quickCheck prop_roundtrip_type
+  putStrLn "roundtrip_type"
+  QC.quickCheck prop_roundtrip_type
 --   putStrLn "roundtrip_exp"
 --   QC.quickCheck prop_roundtrip_exp
   putStrLn "\n**typechecker qc tests**\n"

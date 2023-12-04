@@ -102,7 +102,7 @@ shrinkStringLit :: String -> [String]
 shrinkStringLit s = Prelude.filter (/= '\"') <$> shrink s
 
 instance Arbitrary Value where
-  arbitrary = 
+  arbitrary =
     QC.oneof
       [ BoolVal <$> arbitrary
       , StringVal <$> genStringLit
@@ -111,7 +111,7 @@ instance Arbitrary Value where
       , pure UndefinedVal
       , pure NullVal
       ]
-  
+
   shrink (BoolVal b) = BoolVal <$> shrink b
   shrink (StringVal s) = StringVal <$> shrinkStringLit s
   shrink (NumberVal n) = NumberVal <$> shrink n
@@ -124,8 +124,11 @@ genUnionTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType,
 genMaybeTypeCandidate :: Gen Type
 genMaybeTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
 
+genMap :: Gen (Map String Type)
+genMap = QC.listOf1 ((,) <$> genName <*> genUnionTypeCandidate) >>= \ts -> pure (fromList ts)
+
 instance Arbitrary Type where
-  arbitrary = 
+  arbitrary =
     QC.oneof
       [ pure BoolType
       , pure StringType
@@ -134,11 +137,10 @@ instance Arbitrary Type where
       , pure UndefinedType
       , pure EmptyType
       , pure AnyType
-      , UnionType <$> (QC.listOf1 genUnionTypeCandidate 
-        >>= \t -> if length t == 1 then arbitrary else pure t)
+      , UnionType <$> ((++) <$> QC.listOf1 genUnionTypeCandidate <*> QC.listOf1 genUnionTypeCandidate)
       , MaybeType <$> genMaybeTypeCandidate
-      -- , FunctionType <$> arbitrary <*> arbitrary -- TODO: add later
-      -- , ObjectType <$> arbitrary -- TODO: add later
+      , FunctionType <$> QC.listOf1 genMaybeTypeCandidate <*> genMaybeTypeCandidate
+      , ObjectType <$> genMap
       ]
   shrink BoolType = []
   shrink StringType = []
@@ -147,10 +149,10 @@ instance Arbitrary Type where
   shrink UndefinedType = []
   shrink EmptyType = []
   shrink AnyType = []
-  shrink (UnionType ts) = UnionType <$> shrink ts
-  shrink (MaybeType t) = MaybeType <$> shrink t
+  shrink (UnionType ts) = [UnionType ts' | ts' <- shrink ts, length ts' > 1]
+  shrink (MaybeType t) = [t, UndefinedType, NullType]
   shrink (FunctionType args ret) = FunctionType <$> shrink args <*> shrink ret
-  shrink (ObjectType map) = ObjectType <$> shrink map
+  shrink (ObjectType map) = [ObjectType map' | map' <- shrink map, "" `notElem` keys map']
 
 instance Arbitrary Uop where
   arbitrary = QC.elements [minBound .. maxBound]
@@ -160,42 +162,53 @@ instance Arbitrary Bop where
   arbitrary = QC.elements [minBound .. maxBound]
   shrink = const []
 
--- genName :: Gen Name
--- genName = QC.elements ["_", "_G", "x", "X", "y", "x0", "X0", "xy", "XY", "_x"]
+genExp :: Int -> Gen Expression
+genExp 0 = QC.oneof [Var <$> genVar 0, Val <$> arbitrary]
+genExp n =
+  QC.frequency
+    [ (1, Var <$> genVar n),
+      (1, Val <$> arbitrary),
+      (n, Op1 <$> arbitrary <*> genExp n'),
+      (n, Op2 <$> genExp n' <*> arbitrary <*> genExp n'),
+      (n, Call <$> genName <*> QC.listOf (genExp n'))
+    ]
+  where
+    n' = n `div` 2
 
--- genVar :: Int -> Gen Var
--- genVar 0 = Name <$> genName
--- genVar n =
---   QC.frequency
---     [ (1, Name <$> genName),
---       (n, Dot <$> genExp n' <*> genName),
---       (n, Proj <$> genExp n' <*> genExp n')
---     ]
---   where
---     n' = n `div` 2
+genName :: Gen Name
+genName = QC.elements ["_", "_G", "x", "X", "y", "x0", "X0", "xy", "XY", "_x"]
 
--- instance Arbitrary Var where
---   arbitrary = QC.sized genVar
---   shrink (Name n) = []
---   shrink (Dot e n) = [Dot e' n | e' <- shrink e]
---   shrink (Proj e1 e2) =
---     [Proj e1' e2 | e1' <- shrink e1]
---       ++ [Proj e1 e2' | e2' <- shrink e2]
+genVar :: Int -> Gen Var
+genVar 0 = Name <$> genName
+genVar n =
+  QC.frequency
+    [ (1, Name <$> genName),
+      (n, Dot <$> genExp n' <*> genName),
+      (n, Proj <$> genExp n' <*> genName)
+    ]
+  where
+    n' = n `div` 2
 
--- instance Arbitrary Expression where
---   arbitrary = 
---     QC.oneof
---       [ Val <$> arbitrary
---       , Var <$> arbitrary
---       , Op1 <$> arbitrary <*> arbitrary
---       , Op2 <$> arbitrary <*> arbitrary <*> arbitrary
---       , Call <$> arbitrary <*> arbitrary
---       ]
---   shrink (Val v) = Val <$> shrink v
---   shrink (Var v) = Var <$> shrink v
---   shrink (Op1 uop e) = Op1 <$> pure uop <*> shrink e
---   shrink (Op2 e1 bop e2) = Op2 <$> shrink e1 <*> pure bop <*> shrink e2
---   shrink (Call fn es) = Call <$> shrink fn <*> shrink es
+instance Arbitrary Var where
+  arbitrary = QC.sized genVar
+  shrink (Name n) = []
+  shrink (Dot e n) = [Dot e' n | e' <- shrink e]
+  shrink (Proj e n) = [Proj e' n | e' <- shrink e]
+
+instance Arbitrary Expression where
+  arbitrary =
+    QC.oneof
+      [ Val <$> arbitrary
+      , Var <$> arbitrary
+      , Op1 <$> arbitrary <*> arbitrary
+      , Op2 <$> arbitrary <*> arbitrary <*> arbitrary
+      , Call <$> arbitrary <*> arbitrary
+      ]
+  shrink (Val v) = Val <$> shrink v
+  shrink (Var v) = Var <$> shrink v
+  shrink (Op1 uop e) = Op1 uop <$> shrink e
+  shrink (Op2 e1 bop e2) = Op2 <$> shrink e1 <*> pure bop <*> shrink e2
+  shrink (Call fn es) = Call <$> shrink fn <*> shrink es
 
 -- assign.js
 wAssign :: Block
@@ -203,7 +216,7 @@ wAssign = Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (
 
 -- assignConflict.js
 wAssignConflict :: Block
-wAssignConflict = 
+wAssignConflict =
   Block [
     Assign (Name "x") (Val (BoolVal True)),
     Assign (Name "y") (Val (BoolVal False)),

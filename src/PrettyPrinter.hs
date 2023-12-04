@@ -62,23 +62,24 @@ instance PP a => PP (Map Value a) where
 instance PP Var where
   pp (Name n) = PP.text n
   pp (Dot (Var v) k) = pp v <> PP.text "." <> pp k
-  pp (Dot t k) = PP.parens (pp t) <> PP.text "." <> pp k
+  pp (Dot t k) = pp t <> PP.text "." <> pp k
   pp (Proj (Var v) k) = pp v <> PP.brackets (pp k)
-  pp (Proj t k) = PP.parens (pp t) <> PP.brackets (pp k)
-
+  pp (Proj t k) = pp t <> PP.brackets (pp k)
 
 instance PP Type where
-  pp BoolType = PP.text "bool"
+  pp BoolType = PP.text "boolean"
   pp StringType = PP.text "string"
   pp NumberType = PP.text "number"
   pp NullType = PP.text "null"
   pp UndefinedType = PP.text "undefined"
   pp EmptyType = PP.text "empty"
   pp AnyType = PP.text "any"
-  pp (ObjectType map) = PP.text "object"
-  pp (UnionType ts) = PP.hsep (PP.punctuate PP.comma (fmap pp ts))
+  pp (ObjectType tm) = PP.braces (PP.hsep (PP.punctuate PP.comma (fmap ppa (Map.toList tm))))
+    where
+      ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
+  pp (UnionType ts) = PP.hsep (PP.punctuate (PP.text "|") (fmap pp ts))
   pp (MaybeType t) = PP.text "?" <> pp t
-  pp (FunctionType args ret) = PP.text "function"
+  pp (FunctionType args ret) = PP.parens (PP.hsep (PP.punctuate PP.comma (fmap pp args))) <+> PP.text ":" <+> pp ret
 
 instance PP Statement where
   pp (Assign var e) = pp var <+> PP.text "=" <+> pp e
