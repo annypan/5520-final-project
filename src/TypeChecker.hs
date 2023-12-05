@@ -7,6 +7,7 @@ import State (State)
 import qualified State as S
 import qualified Data.Set as Set
 import FlowParser
+import Data.Maybe (isJust)
 
 type TypeDeclaration = Map Name Type
 
@@ -250,19 +251,20 @@ doesExpressionMatchType e t = do
         Nothing -> return Failure
 
 -- Checks if a block is valid
-checkBlock :: Block -> State TypeDeclaration CheckResult
+checkBlock :: Block -> State TypeDeclaration [CheckResult]
 checkBlock (Block statements) = do
     results <- mapM checkStatement statements
-    return (boolToCheckResult (all (== Success) results))
+    return (concat results)
 
 -- Checks if a statement is valid
-checkStatement :: Statement -> State TypeDeclaration CheckResult
+checkStatement :: Statement -> State TypeDeclaration [CheckResult]
 checkStatement (Assign var e) = do
     store <- S.get
     varType <- resolveVarType var
     case varType of
         Just t -> do
-            doesExpressionMatchType e t
+           res <- doesExpressionMatchType e t
+           return [res]
         Nothing ->
             case var of
                 Name name -> do
@@ -270,24 +272,27 @@ checkStatement (Assign var e) = do
                     case expType of
                         Just t -> do
                             S.put (Map.insert name t store)
-                            return Success
-                        Nothing -> return Failure
-                _ -> return Unknown
+                            return [Success]
+                        Nothing -> return [Failure]
+                _ -> return [Unknown]
 checkStatement (Update var e) = do
     store <- S.get
     varType <- resolveVarType var
     case varType of
         Just t -> do
-            doesExpressionMatchType e t
-        Nothing -> return Failure -- var must have been declared; otherwise, it's an error
+            res <- doesExpressionMatchType e t
+            return [res]
+        Nothing -> return [Failure] -- var must have been declared; otherwise, it's an error
 checkStatement (If e s1 s2) = do
+    re <- synthesizeType e
     r1 <- checkBlock s1
     r2 <- checkBlock s2
-    return (if r1 == Success && r2 == Success then Success else Failure)
+    return ((if isJust re then Success else Failure): r1 ++ r2);
 checkStatement (While e s) = do
-    r <- checkBlock s
-    return (if r == Success then Success else Failure)
-checkStatement Empty = return Success
+    re <- synthesizeType e
+    res <- checkBlock s
+    return ((if isJust re then Success else Failure): res)
+checkStatement Empty = return [Success]
 checkStatement (For s1 e1 e2 s2) = do
     case s1 of
         Assign _ _ -> do
@@ -295,9 +300,9 @@ checkStatement (For s1 e1 e2 s2) = do
             case t1 of
                 Just BoolType -> do -- e1 is the stop condition: must be bool
                     checkBlock s2
-                _ -> return Failure
-        _ -> return Failure
-checkStatement (Return e) = return Success
+                _ -> return [Failure]
+        _ -> return [Failure]
+checkStatement (Return e) = return [Success]
 checkStatement (FunctionDef name t s) = do
     case t of
         FunctionType args ret -> do
@@ -307,14 +312,14 @@ checkStatement (FunctionDef name t s) = do
             r <- checkBlock s
             S.put store
             return r
-        _ -> return Failure
+        _ -> return [Failure]
 
 -- Runs a block and returns the results and the updated type declaration
 runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
 runBlock (Block statements) = do
     results <- mapM checkStatement statements
     store <- S.get
-    return (results, store)
+    return (concat results, store)
 
 initialStore :: TypeDeclaration
 initialStore = Map.empty

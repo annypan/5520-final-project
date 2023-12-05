@@ -6,7 +6,6 @@ import GHC.Conc qualified as P
 import Parser (Parser)
 import Parser qualified as P
 import Syntax
-import ASTExamples
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Test.QuickCheck qualified as QC
 
@@ -389,22 +388,3 @@ blockP = Block <$> (P.many statementP >>= \s -> return (filter (/= Empty) s))
 
 parseJSFile :: String -> IO (Either P.ParseError Block)
 parseJSFile = P.parseFromFile blockP
-
-tParseFiles :: Test
-tParseFiles =
-  "parse files" ~:
-    TestList
-      [ "assign" ~: p "js/assign.js" wAssign,
-        "assignConflict" ~: p "js/assignConflict.js" wAssignConflict,
-        "if" ~: p "js/if.js" wIf,
-        "updateConflict" ~: p "js/updateConflict.js" wUpdateConflict,
-        "ifLiteral" ~: p "js/ifLiteral.js" wIfLiteral,
-        "ifBranchConflict" ~: p "js/ifBranchConflict.js" wIfBranchConflict,
-        "while" ~: p "js/while.js" wWhile
-      ]
-  where
-    p fn ast = do
-      result <- parseJSFile fn
-      case result of
-        Left _ -> assert False
-        Right ast' -> assert (ast == ast')

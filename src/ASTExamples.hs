@@ -71,3 +71,16 @@ wWhile =
           Update (Dot (Var (Name "x")) "z") (Val (BoolVal False))
         ])
     ]
+
+-- whlieCondConflict.js
+wWhileCondConflict :: Block
+wWhileCondConflict =
+  Block
+    [ Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 2), ("z", BoolVal True)]))),
+      While
+        (Op2 (Op2 (Var (Dot (Var (Name "x")) "z")) Plus (Val (NumberVal 3))) Eq (Val (NumberVal 2)))
+        (Block [
+          Update (Dot (Var (Name "x")) "y") (Val (NumberVal 3)),
+          Update (Dot (Var (Name "x")) "z") (Val (BoolVal False))
+        ])
+    ]

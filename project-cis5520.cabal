@@ -47,6 +47,7 @@ library
       PrettyPrinter
       TypeChecker
       State
+      ASTExamples
   hs-source-dirs:
       src
 

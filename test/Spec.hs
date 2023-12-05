@@ -12,13 +12,18 @@ import qualified Data.Set as Set
 import TypeChecker
 import State (State)
 import qualified State as S
+import ASTExamples
+
+isNotFuncType :: Type -> Bool
+isNotFuncType (FunctionType _ _) = False
+isNotFuncType _ = True
 
 -- QC properties
 prop_roundtrip_val :: Value -> Bool
 prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
 
-prop_roundtrip_type :: Type -> Bool
-prop_roundtrip_type t = P.parse typeP (pretty t) == Right t
+prop_roundtrip_type :: Type -> QC.Property -- don't test for func type because we ignore some info when parsing
+prop_roundtrip_type t = isNotFuncType t QC.==> P.parse typeP (pretty t) == Right t
 
 prop_roundtrip_exp :: Expression -> Bool
 prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
@@ -81,8 +86,35 @@ typecheckerAllQC = do
   QC.quickCheck prop_bop_match_is_commutative
 
 -- unit tests
-test_unit_all :: IO Counts
-test_unit_all =
+test_parser_unit_all :: IO Counts
+test_parser_unit_all =
+  runTestTT $
+    TestList
+      [ tParseFiles]
+
+tParseFiles :: Test
+tParseFiles =
+  "parse files" ~:
+    TestList
+      [ "assign" ~: p "js/assign.js" wAssign,
+        "assignConflict" ~: p "js/assignConflict.js" wAssignConflict,
+        "if" ~: p "js/if.js" wIf,
+        "updateConflict" ~: p "js/updateConflict.js" wUpdateConflict,
+        "ifLiteral" ~: p "js/ifLiteral.js" wIfLiteral,
+        "ifBranchConflict" ~: p "js/ifBranchConflict.js" wIfBranchConflict,
+        "while" ~: p "js/while.js" wWhile,
+        "whileCondConflict" ~: p "js/whileCondConflict.js" wWhileCondConflict
+      ]
+  where
+    p fn ast = do
+      result <- parseJSFile fn
+      case result of
+        Left _ -> assert False
+        Right ast' -> assert (ast == ast')
+
+
+test_checker_unit_all :: IO Counts
+test_checker_unit_all =
     runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testSynthesizeType, testResolveVarType, testCheckStatement, testRunBlock]
 
 testCanBeUsedAsType :: Test
@@ -179,8 +211,8 @@ testCheckStatement :: Test
 testCheckStatement =
     TestList
     [
-        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= Success,
-        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= Failure
+        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= [Success],
+        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= [Failure]
     ]
 
 testRunBlock :: Test
@@ -209,5 +241,6 @@ main = do
   putStrLn "\n**typechecker qc tests**\n"
   typecheckerAllQC
   putStrLn "\n**unit tests**\n"
-  _ <- test_unit_all
+  _ <- test_parser_unit_all
+  _ <- test_checker_unit_all
   return ()
