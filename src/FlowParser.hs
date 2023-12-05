@@ -338,7 +338,7 @@ ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else"
 -- Right (Block [Assign (Name "x") (Val (NumberVal 1))])
 
 -- >>> P.parse expP "x > 1"
--- Right (Var (Name "x"))
+-- Right (Op2 (Var (Name "x")) Gt (Val (NumberVal 1)))
 
 -- ifP = do
 --   stringP "if"
@@ -349,14 +349,14 @@ ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else"
 --   return $ If cond thenBlock elseBlock
 
 -- >>> P.parse ifP "if (x > 0) {const x = 1} else {const x = 2}"
--- Left "No parses"
+-- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Assign (Name "x") (Val (NumberVal 1))]) (Block [Assign (Name "x") (Val (NumberVal 2))]))
 emptyP = Empty <$ stringP ";"
 
 whileP :: Parser Statement
 whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
 
 -- >>> P.parse whileP "while (x > 0) {x = x - 1}"
--- Left "No parses"
+-- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Assign (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
 
 -- Parses blocks separated by semicolons
 blockP :: Parser Block
