@@ -8,19 +8,15 @@ import qualified State as S
 import qualified Data.Set as Set
 import FlowParser
 import Data.Maybe (isJust)
+import PrettyPrinter
 
 type TypeDeclaration = Map Name Type
 
 data CheckResult
   = Success
-  | Failure
+  | Failure String
   | Unknown
-  deriving (Eq, Show, Ord)
-
--- Returns the CheckResult value of a boolean
-boolToCheckResult :: Bool -> CheckResult
-boolToCheckResult True = Success
-boolToCheckResult False = Failure
+  deriving (Eq, Show)
 
 -- Checks if a type is a primitive type
 isPrimitive :: Type -> Bool
@@ -247,8 +243,8 @@ doesExpressionMatchType :: Expression -> Type -> State TypeDeclaration CheckResu
 doesExpressionMatchType e t = do
     t' <- synthesizeType e
     case t' of
-        Just t'' -> return (boolToCheckResult (canBeUsedAsType t'' t))
-        Nothing -> return Failure
+        Just t'' -> (if canBeUsedAsType t'' t then return Success else return (Failure (pretty e)))
+        Nothing -> return (Failure (pretty e))
 
 -- Checks if a block is valid
 checkBlock :: Block -> State TypeDeclaration [CheckResult]
@@ -258,13 +254,13 @@ checkBlock (Block statements) = do
 
 -- Checks if a statement is valid
 checkStatement :: Statement -> State TypeDeclaration [CheckResult]
-checkStatement (Assign var e) = do
+checkStatement s@(Assign var e) = do
     store <- S.get
     varType <- resolveVarType var
     case varType of
         Just t -> do
            res <- doesExpressionMatchType e t
-           return [res]
+           return [(\r -> if r == Success then Success else Failure (pretty s)) res]
         Nothing ->
             case var of
                 Name name -> do
@@ -273,46 +269,44 @@ checkStatement (Assign var e) = do
                         Just t -> do
                             S.put (Map.insert name t store)
                             return [Success]
-                        Nothing -> return [Failure]
+                        Nothing -> return [Failure (pretty s)]
                 _ -> return [Unknown]
-checkStatement (Update var e) = do
+checkStatement s@(Update var e) = do
     store <- S.get
     varType <- resolveVarType var
     case varType of
         Just t -> do
             res <- doesExpressionMatchType e t
-            return [res]
-        Nothing -> return [Failure] -- var must have been declared; otherwise, it's an error
-checkStatement (If e s1 s2) = do
+            return [(\r -> if r == Success then Success else Failure (pretty s)) res]
+        Nothing -> return [Failure (pretty s)] -- var must have been declared; otherwise, it's an error
+checkStatement s@(If e s1 s2) = do
     re <- synthesizeType e
     r1 <- checkBlock s1
     r2 <- checkBlock s2
-    return ((if isJust re then Success else Failure): r1 ++ r2);
-checkStatement (While e s) = do
+    return ((if isJust re then Success else Failure (pretty e)): r1 ++ r2);
+checkStatement st@(While e s) = do
     re <- synthesizeType e
     res <- checkBlock s
-    return ((if isJust re then Success else Failure): res)
+    return ((if isJust re then Success else Failure (pretty e)): res)
 checkStatement Empty = return [Success]
-checkStatement (For s1 e1 e2 s2) = do
-    case s1 of
-        Assign _ _ -> do
-            t1 <- synthesizeType e1
-            case t1 of
-                Just BoolType -> do -- e1 is the stop condition: must be bool
-                    checkBlock s2
-                _ -> return [Failure]
-        _ -> return [Failure]
+checkStatement s@(For s1 e1 e2 s2) = case s1 of
+    Assign _ _ -> do
+        t1 <- synthesizeType e1
+        case t1 of
+            Just BoolType -> do -- e1 is the stop condition: must be bool
+                checkBlock s2
+            _ -> return [Failure (pretty s)]
+    _ -> return [Failure (pretty s)]
 checkStatement (Return e) = return [Success]
-checkStatement (FunctionDef name t s) = do
-    case t of
-        FunctionType args ret -> do
-            store <- S.get
-            S.put (Map.insert name t store)
-            -- TODO: check if the actual return type matches the declared return type
-            r <- checkBlock s
-            S.put store
-            return r
-        _ -> return [Failure]
+checkStatement st@(FunctionDef name t s) = case t of
+    FunctionType args ret -> do
+        store <- S.get
+        S.put (Map.insert name t store)
+        -- TODO: check if the actual return type matches the declared return type
+        r <- checkBlock s
+        S.put store
+        return r
+    _ -> return [Failure (pretty s)]
 
 -- Runs a block and returns the results and the updated type declaration
 runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
