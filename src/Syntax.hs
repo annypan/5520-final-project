@@ -1,12 +1,14 @@
 module Syntax where
 
+import Data.Char qualified as Char
 import Data.Map
 import Test.QuickCheck (Arbitrary (..), Gen)
-import qualified Test.QuickCheck as QC
-import qualified Data.Char as Char
+import Test.QuickCheck qualified as QC
 
 type Object = Map Name Value
+
 type Name = String
+
 type FuncName = String
 
 data Statement
@@ -22,7 +24,7 @@ data Statement
 data Var
   = Name Name -- x, global variable
   | Dot Expression Name -- t.x, access the object property x
-  | Proj Expression Name -- t[1], access the object property 1 
+  | Proj Expression Name -- t[1], access the object property 1
   deriving (Eq, Show)
 
 newtype Block = Block [Statement] -- s1 ... sn
@@ -87,6 +89,14 @@ data Bop
   | In -- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/in
   deriving (Eq, Show, Enum, Bounded)
 
+level :: Bop -> Int
+level Times = 7
+level Divide = 7
+level Plus = 5
+level Minus = 5
+level Concat = 4
+level _ = 3 -- comparison operators
+
 -- | Generate a string literal, being careful about the characters that it may contain
 genStringLit :: Gen String
 genStringLit = escape <$> QC.listOf (QC.elements stringLitChars)
@@ -104,12 +114,12 @@ shrinkStringLit s = Prelude.filter (/= '\"') <$> shrink s
 instance Arbitrary Value where
   arbitrary =
     QC.oneof
-      [ BoolVal <$> arbitrary
-      , StringVal <$> genStringLit
-      , NumberVal <$> arbitrary
-      -- , ObjectVal <$> arbitrary -- TODO: add later
-      , pure UndefinedVal
-      , pure NullVal
+      [ BoolVal <$> arbitrary,
+        StringVal <$> genStringLit,
+        NumberVal <$> arbitrary,
+        -- , ObjectVal <$> arbitrary -- TODO: add later
+        pure UndefinedVal,
+        pure NullVal
       ]
 
   shrink (BoolVal b) = BoolVal <$> shrink b
@@ -130,17 +140,17 @@ genMap = QC.listOf1 ((,) <$> genName <*> genUnionTypeCandidate) >>= \ts -> pure 
 instance Arbitrary Type where
   arbitrary =
     QC.oneof
-      [ pure BoolType
-      , pure StringType
-      , pure NumberType
-      , pure NullType
-      , pure UndefinedType
-      , pure EmptyType
-      , pure AnyType
-      , UnionType <$> ((++) <$> QC.listOf1 genUnionTypeCandidate <*> QC.listOf1 genUnionTypeCandidate)
-      , MaybeType <$> genMaybeTypeCandidate
-      , FunctionType <$> QC.listOf1 genMaybeTypeCandidate <*> genMaybeTypeCandidate
-      , ObjectType <$> genMap
+      [ pure BoolType,
+        pure StringType,
+        pure NumberType,
+        pure NullType,
+        pure UndefinedType,
+        pure EmptyType,
+        pure AnyType,
+        UnionType <$> ((++) <$> QC.listOf1 genUnionTypeCandidate <*> QC.listOf1 genUnionTypeCandidate),
+        MaybeType <$> genMaybeTypeCandidate,
+        FunctionType <$> QC.listOf1 genMaybeTypeCandidate <*> genMaybeTypeCandidate,
+        ObjectType <$> genMap
       ]
   shrink BoolType = []
   shrink StringType = []
@@ -198,11 +208,11 @@ instance Arbitrary Var where
 instance Arbitrary Expression where
   arbitrary =
     QC.oneof
-      [ Val <$> arbitrary
-      , Var <$> arbitrary
-      , Op1 <$> arbitrary <*> arbitrary
-      , Op2 <$> arbitrary <*> arbitrary <*> arbitrary
-      , Call <$> arbitrary <*> arbitrary
+      [ Val <$> arbitrary,
+        Var <$> arbitrary,
+        Op1 <$> arbitrary <*> arbitrary,
+        Op2 <$> arbitrary <*> arbitrary <*> arbitrary,
+        Call <$> arbitrary <*> arbitrary
       ]
   shrink (Val v) = Val <$> shrink v
   shrink (Var v) = Var <$> shrink v
@@ -212,12 +222,13 @@ instance Arbitrary Expression where
 
 -- assign.js
 wAssign :: Block
-wAssign = Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))]
+wAssign = Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "y") (Val (BoolVal False))]
 
 -- assignConflict.js
 wAssignConflict :: Block
 wAssignConflict =
-  Block [
-    Assign (Name "x") (Val (BoolVal True)),
-    Assign (Name "y") (Val (BoolVal False)),
-    Assign (Name "x") (Val (NumberVal 1))]
+  Block
+    [ Assign (Name "x") (Val (BoolVal True)),
+      Assign (Name "y") (Val (BoolVal False)),
+      Assign (Name "x") (Val (NumberVal 1))
+    ]

@@ -98,28 +98,28 @@ pairsP :: Parser [(Name, Value)]
 pairsP = wsP (P.sepBy pairP (wsP (P.char ',')))
 
 -- >>> P.parse (P.many expP) "x > 1"
--- Right [Var (Name "x")]
+-- Right [Op2 (Var (Name "x")) Gt (Val (NumberVal 1))]
 
 -- | Parsing Expressions
 expP :: Parser Expression -- type errors will be detected here
 expP = compP
   where
-    -- compP = catP `P.chainl1` opAtLevel (level Gt)
-    -- catP = sumP `P.chainl1` opAtLevel (level Concat)
-    -- sumP = prodP `P.chainl1` opAtLevel (level Plus)
-    -- prodP = uopexpP `P.chainl1` opAtLevel (level Times)
-    compP =
-      Op1 <$> uopP <*> compP
-        P.<|> baseP
+    compP = catP `P.chainl1` opAtLevel (level Gt)
+    catP = sumP `P.chainl1` opAtLevel (level Concat)
+    sumP = prodP `P.chainl1` opAtLevel (level Plus)
+    prodP = uopexpP `P.chainl1` opAtLevel (level Times)
+    uopexpP =
+      baseP
+        P.<|> Op1 <$> uopP <*> compP
     baseP =
-      Val <$> valueP
+      Var <$> varP
         P.<|> parens expP
-        P.<|> Var <$> varP
+        P.<|> Val <$> valueP
         P.<|> callP
 
 -- | Parse an operator at a specified precedence level
--- opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
--- opAtLevel l = flip Op2 <$> P.filter (\x -> level x == l) bopP
+opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
+opAtLevel l = flip Op2 <$> P.filter (\x -> level x == l) bopP
 
 -- >>>  P.parse (P.many varP) "x y z"
 -- Right [Name "x",Name "y",Name "z"]
