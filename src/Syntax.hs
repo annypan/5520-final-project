@@ -220,27 +220,3 @@ instance Arbitrary Expression where
   shrink (Op1 uop e) = Op1 uop <$> shrink e
   shrink (Op2 e1 bop e2) = Op2 <$> shrink e1 <*> pure bop <*> shrink e2
   shrink (Call fn es) = Call <$> shrink fn <*> shrink es
-
--- assign.js
-wAssign :: Block
-wAssign = Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "y") (Val (BoolVal False))]
-
--- assignConflict.js
-wAssignConflict :: Block
-wAssignConflict =
-  Block
-    [ Assign (Name "x") (Val (BoolVal True)),
-      Assign (Name "y") (Val (BoolVal False)),
-      Assign (Name "x") (Val (NumberVal 1))
-    ]
-
-wIf :: Block
-wIf =
-  Block
-    [ Assign (Name "x") (Val (BoolVal True)),
-      Assign (Name "y") (Val (NumberVal 2)),
-      If
-        (Op2 (Var (Name "x")) Eq (Val (BoolVal True)))
-        (Block [Update (Name "y") (Val (NumberVal 3))])
-        (Block [Update (Name "y") (Val (NumberVal 4))])
-    ]

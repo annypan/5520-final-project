@@ -6,6 +6,7 @@ import GHC.Conc qualified as P
 import Parser (Parser)
 import Parser qualified as P
 import Syntax
+import ASTExamples
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Test.QuickCheck qualified as QC
 
@@ -382,7 +383,11 @@ tParseFiles =
     TestList
       [ "assign" ~: p "js/assign.js" wAssign,
         "assignConflict" ~: p "js/assignConflict.js" wAssignConflict,
-        "if" ~: p "js/if.js" wIf
+        "if" ~: p "js/if.js" wIf,
+        "updateConflict" ~: p "js/updateConflict.js" wUpdateConflict,
+        "ifLiteral" ~: p "js/ifLiteral.js" wIfLiteral,
+        "ifBranchConflict" ~: p "js/ifBranchConflict.js" wIfBranchConflict,
+        "while" ~: p "js/while.js" wWhile
       ]
   where
     p fn ast = do

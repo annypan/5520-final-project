@@ -273,21 +273,20 @@ checkStatement (Assign var e) = do
                             return Success
                         Nothing -> return Failure
                 _ -> return Unknown
+checkStatement (Update var e) = do
+    store <- S.get
+    varType <- resolveVarType var
+    case varType of
+        Just t -> do
+            doesExpressionMatchType e t
+        Nothing -> return Failure -- var must have been declared; otherwise, it's an error
 checkStatement (If e s1 s2) = do
-    eType <- synthesizeType e
-    case eType of
-        Just BoolType -> do
-            r1 <- checkBlock s1
-            r2 <- checkBlock s2
-            return Success
-        _ -> return Failure
+    r1 <- checkBlock s1
+    r2 <- checkBlock s2
+    return (if r1 == Success && r2 == Success then Success else Failure)
 checkStatement (While e s) = do
-    eType <- synthesizeType e
-    case eType of
-        Just BoolType -> do
-            r <- checkBlock s
-            return Success
-        _ -> return Failure
+    r <- checkBlock s
+    return (if r == Success then Success else Failure)
 checkStatement Empty = return Success
 checkStatement (For s1 e1 e2 s2) = do
     case s1 of

@@ -82,7 +82,8 @@ instance PP Type where
   pp (FunctionType args ret) = PP.parens (PP.hsep (PP.punctuate PP.comma (fmap pp args))) <+> PP.text ":" <+> pp ret
 
 instance PP Statement where
-  pp (Assign var e) = pp var <+> PP.text "=" <+> pp e
+  pp (Assign var e) = PP.text "const " <+> pp var <+> PP.text "=" <+> pp e
+  pp (Update var e) = pp var <+> PP.text "=" <+> pp e
   pp (If e s1 s2) =
     PP.text "if" <+> pp e <+> PP.text "then" <+> pp s1 <+> PP.text "else" <+> pp s2
   pp (While e s) = PP.text "while" <+> pp e <+> PP.text "do" <+> pp s
