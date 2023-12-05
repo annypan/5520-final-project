@@ -302,10 +302,23 @@ uniontypeP = wsP (UnionType <$> P.sepBy1 primitivetypeP (wsP (P.char '|')))
 maybetypeP :: Parser Type
 maybetypeP = wsP (MaybeType <$> (P.char '?' *> primitivetypeP))
 
--- >>> P.parse (P.many functiontypeP) "(boolean, string): number"
--- Right [FunctionType [BoolType,StringType] NumberType]
+fpairTypeP :: Parser (Name, Type)
+fpairTypeP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> typeP)
+
+-- >>> P.parse (P.many fpairTypeP) "x: number"
+-- Right [("x",NumberType)]
+
+fpairsTypeP :: Parser [Type]
+fpairsTypeP = parens (P.sepBy pairTypeP (wsP (P.char ',')) >>= \ts -> return (map snd ts))
+
+-- >>> P.parse fpairsTypeP "(x: boolean, y: string)"
+-- Right [BoolType,StringType]
+
 functiontypeP :: Parser Type
-functiontypeP = wsP (FunctionType <$> parens (P.sepBy typeP (wsP (P.char ','))) <*> (wsP (P.string ":") *> typeP))
+functiontypeP = wsP (FunctionType <$> fpairsTypeP <*> (wsP (P.string ":") *> typeP))
+
+-- >>> P.parse functiontypeP "(x: boolean, y: string): number"
+-- Right (FunctionType [BoolType,StringType] NumberType)
 
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
 -- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
@@ -324,7 +337,7 @@ callP = Call <$> funcNameP <*> parens (P.sepBy expP (wsP (P.char ',')))
 assignP :: Parser Statement
 assignP =
   Assign
-    <$> ((stringP "const" P.<|> stringP "var") *> varP)
+    <$> ((stringP "const" P.<|> stringP "var" P.<|> stringP "let") *> varP)
     <* wsP (P.char '=')
     <*> expP
 
