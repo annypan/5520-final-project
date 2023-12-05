@@ -12,7 +12,7 @@ type Name = String
 type FuncName = String
 
 data Statement
-  = Assign Var Expression -- const x = e; var x = e-- handles var, let, const
+  = Assign Var Expression -- const x = e; var x = e -- handles var, const
   | Update Var Expression -- x = e
   | If Expression Block Block -- if e then s1 else s2 end
   | While Expression Block -- while e do s end
@@ -232,4 +232,15 @@ wAssignConflict =
     [ Assign (Name "x") (Val (BoolVal True)),
       Assign (Name "y") (Val (BoolVal False)),
       Assign (Name "x") (Val (NumberVal 1))
+    ]
+
+wIf :: Block
+wIf =
+  Block
+    [ Assign (Name "x") (Val (BoolVal True)),
+      Assign (Name "y") (Val (NumberVal 2)),
+      If
+        (Op2 (Var (Name "x")) Eq (Val (BoolVal True)))
+        (Block [Update (Name "y") (Val (NumberVal 3))])
+        (Block [Update (Name "y") (Val (NumberVal 4))])
     ]

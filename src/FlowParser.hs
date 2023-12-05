@@ -345,28 +345,33 @@ updateP = Update <$> varP <* wsP (P.char '=') <*> expP
 ifP :: Parser Statement
 ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else" *> braces blockP)
 
--- >>> P.parse blockP "const x = 1"
+-- >>> P.parse blockP "const x = 1;"
 -- Right (Block [Assign (Name "x") (Val (NumberVal 1))])
 
 -- >>> P.parse expP "x > 1"
 -- Right (Op2 (Var (Name "x")) Gt (Val (NumberVal 1)))
 
--- >>> P.parse ifP "if (x > 0) {const x = 1} else {const x = 2}"
--- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Assign (Name "x") (Val (NumberVal 1))]) (Block [Assign (Name "x") (Val (NumberVal 2))]))
+-- >>> P.parse ifP "if (x > 0) { x = 1; } else { x = 2; }"
+-- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Val (NumberVal 1))]) (Block [Update (Name "x") (Val (NumberVal 2))]))
+
+emptyP :: Parser Statement
 emptyP = Empty <$ stringP ";"
 
 whileP :: Parser Statement
 whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
 
--- >>> P.parse whileP "while (x > 0) {x = x - 1}"
--- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
+-- >>> P.parse whileP "while (x > 0) {x = x - 1;}"
+-- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1))),Empty]))
 
 -- Parses blocks separated by semicolons
 blockP :: Parser Block
-blockP = Block <$> P.sepBy statementP (wsP (stringP ";"))
+blockP = Block <$> (P.many statementP >>= \s -> return (filter (/= Empty) s))
 
--- >>> P.parse blockP "const x = true; const y = false; y = -x"
--- Right (Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False))])
+-- >>> P.parse blockP "const x = true; const y = false; y = -x; "
+-- Right (Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (BoolVal False)),Update (Name "y") (Op1 Neg (Var (Name "x")))])
+
+-- >>> P.parse blockP "const x = true; var y = 2; if (x > 0) { x = 1; } else { x = 2; }"
+-- Right (Block [Assign (Name "x") (Val (BoolVal True)),Assign (Name "y") (Val (NumberVal 2)),If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Val (NumberVal 1))]) (Block [Update (Name "x") (Val (NumberVal 2))])])
 
 parseJSFile :: String -> IO (Either P.ParseError Block)
 parseJSFile = P.parseFromFile blockP
@@ -376,7 +381,8 @@ tParseFiles =
   "parse files" ~:
     TestList
       [ "assign" ~: p "js/assign.js" wAssign,
-        "assignConflict" ~: p "js/assignConflict.js" wAssignConflict
+        "assignConflict" ~: p "js/assignConflict.js" wAssignConflict,
+        "if" ~: p "js/if.js" wIf
       ]
   where
     p fn ast = do
