@@ -52,6 +52,7 @@ doesValueMatchType (ObjectVal obj) (ObjectType typeMap)
 doesValueMatchType value (FunctionType args ret) = False
 doesValueMatchType _ _ = False
 
+-- Unwraps nested maybe types
 unwrapMaybeType :: Type -> Type
 unwrapMaybeType (MaybeType t) = unwrapMaybeType t
 unwrapMaybeType t = t
@@ -157,6 +158,7 @@ doesBopMatchType bop t1 t2 = case bop of
 doesBopMatchValue :: Bop -> Value -> Value -> Bool
 doesBopMatchValue bop v1 v2 = doesBopMatchType bop (getType v1) (getType v2)
 
+-- Gets the return type of a binary operator, assuming the input types are valid
 getBopReturnType :: Bop -> Type -> Type -> Type
 getBopReturnType bop t1 t2 = case bop of
     Plus -> t1
@@ -195,6 +197,7 @@ resolveVarType (Dot exp name) = do
         _ -> return Nothing
 resolveVarType (Proj exp name) = resolveVarType (Dot exp name)
 
+-- Gets a list of types from a list of maybe types
 getValidTypeList :: [Maybe Type] -> Maybe [Type]
 getValidTypeList [] = Just []
 getValidTypeList (Just t : ts) = case getValidTypeList ts of
@@ -246,9 +249,13 @@ doesExpressionMatchType e t = do
         Just t'' -> return (boolToCheckResult (canBeUsedAsType t'' t))
         Nothing -> return Failure
 
-initialStore :: TypeDeclaration
-initialStore = Map.empty
+-- Checks if a block is valid
+checkBlock :: Block -> State TypeDeclaration CheckResult
+checkBlock (Block statements) = do
+    results <- mapM checkStatement statements
+    return (boolToCheckResult (all (== Success) results))
 
+-- Checks if a statement is valid
 checkStatement :: Statement -> State TypeDeclaration CheckResult
 checkStatement (Assign var e) = do
     store <- S.get
@@ -266,14 +273,54 @@ checkStatement (Assign var e) = do
                             return Success
                         Nothing -> return Failure
                 _ -> return Unknown
-checkStatement _ = undefined
+checkStatement (If e s1 s2) = do
+    eType <- synthesizeType e
+    case eType of
+        Just BoolType -> do
+            r1 <- checkBlock s1
+            r2 <- checkBlock s2
+            return Success
+        _ -> return Failure
+checkStatement (While e s) = do
+    eType <- synthesizeType e
+    case eType of
+        Just BoolType -> do
+            r <- checkBlock s
+            return Success
+        _ -> return Failure
+checkStatement Empty = return Success
+checkStatement (For s1 e1 e2 s2) = do
+    case s1 of
+        Assign _ _ -> do
+            t1 <- synthesizeType e1
+            case t1 of
+                Just BoolType -> do -- e1 is the stop condition: must be bool
+                    checkBlock s2
+                _ -> return Failure
+        _ -> return Failure
+checkStatement (Return e) = return Success
+checkStatement (FunctionDef name t s) = do
+    case t of
+        FunctionType args ret -> do
+            store <- S.get
+            S.put (Map.insert name t store)
+            -- TODO: check if the actual return type matches the declared return type
+            r <- checkBlock s
+            S.put store
+            return r
+        _ -> return Failure
 
+-- Runs a block and returns the results and the updated type declaration
 runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
 runBlock (Block statements) = do
     results <- mapM checkStatement statements
     store <- S.get
     return (results, store)
 
+initialStore :: TypeDeclaration
+initialStore = Map.empty
+
+-- Checks the js file and returns the results
 checker :: String -> IO ([CheckResult], TypeDeclaration)
 checker s = do
     res <- parseJSFile s

@@ -151,7 +151,7 @@ instance Arbitrary Type where
   shrink AnyType = []
   shrink (UnionType ts) = [UnionType ts' | ts' <- shrink ts, length ts' > 1]
   shrink (MaybeType t) = [t, UndefinedType, NullType]
-  shrink (FunctionType args ret) = FunctionType <$> shrink args <*> shrink ret
+  shrink (FunctionType args ret) = [FunctionType args' ret | args' <- shrink args, not (Prelude.null args')]
   shrink (ObjectType map) = [ObjectType map' | map' <- shrink map, "" `notElem` keys map']
 
 instance Arbitrary Uop where
