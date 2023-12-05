@@ -12,7 +12,8 @@ type Name = String
 type FuncName = String
 
 data Statement
-  = Assign Var Expression -- x = e -- handles var, let, const
+  = Assign Var Expression -- const x = e; var x = e-- handles var, let, const
+  | Update Var Expression -- x = e
   | If Expression Block Block -- if e then s1 else s2 end
   | While Expression Block -- while e do s end
   | Empty -- ';'

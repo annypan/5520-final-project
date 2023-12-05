@@ -32,7 +32,12 @@ brackets x = P.between (stringP "[") x (stringP "]")
 
 -- | Parsing Statements
 statementP :: Parser Statement
-statementP = assignP
+statementP =
+  emptyP
+    P.<|> assignP
+    P.<|> updateP
+    P.<|> ifP
+    P.<|> whileP
 
 -- | Parsing Constants
 valueP :: Parser Value
@@ -331,6 +336,12 @@ assignP =
 -- >>> P.parse assignP "var x = \"str\";"
 -- Right (Assign (Name "x") (Val (StringVal "str")))
 
+updateP :: Parser Statement
+updateP = Update <$> varP <* wsP (P.char '=') <*> expP
+
+-- >>> P.parse updateP "x = x + 1;"
+-- Right (Update (Name "x") (Op2 (Var (Name "x")) Plus (Val (NumberVal 1))))
+
 ifP :: Parser Statement
 ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else" *> braces blockP)
 
@@ -340,14 +351,6 @@ ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else"
 -- >>> P.parse expP "x > 1"
 -- Right (Op2 (Var (Name "x")) Gt (Val (NumberVal 1)))
 
--- ifP = do
---   stringP "if"
---   cond <- parens expP
---   thenBlock <- braces blockP
---   stringP "else"
---   elseBlock <- braces blockP
---   return $ If cond thenBlock elseBlock
-
 -- >>> P.parse ifP "if (x > 0) {const x = 1} else {const x = 2}"
 -- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Assign (Name "x") (Val (NumberVal 1))]) (Block [Assign (Name "x") (Val (NumberVal 2))]))
 emptyP = Empty <$ stringP ";"
@@ -356,7 +359,7 @@ whileP :: Parser Statement
 whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
 
 -- >>> P.parse whileP "while (x > 0) {x = x - 1}"
--- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Assign (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
+-- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
 
 -- Parses blocks separated by semicolons
 blockP :: Parser Block
