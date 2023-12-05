@@ -67,6 +67,8 @@ nullValP = constP "null" NullVal
 numberValP :: Parser Value
 numberValP = NumberVal <$> wsP P.int
 
+-- >>> P.parse (P.many stringValP) "\"str\" \"str\""
+-- Right [StringVal "str",StringVal "str"]
 stringValP :: Parser Value
 stringValP =
   StringVal
@@ -95,6 +97,9 @@ pairP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> valueP)
 pairsP :: Parser [(Name, Value)]
 pairsP = wsP (P.sepBy pairP (wsP (P.char ',')))
 
+-- >>> P.parse (P.many expP) "x > 1"
+-- Right [Var (Name "x")]
+
 -- | Parsing Expressions
 expP :: Parser Expression -- type errors will be detected here
 expP = compP
@@ -104,8 +109,8 @@ expP = compP
     -- sumP = prodP `P.chainl1` opAtLevel (level Plus)
     -- prodP = uopexpP `P.chainl1` opAtLevel (level Times)
     compP =
-      baseP
-        P.<|> Op1 <$> uopP <*> compP
+      Op1 <$> uopP <*> compP
+        P.<|> baseP
     baseP =
       Val <$> valueP
         P.<|> parens expP
@@ -234,17 +239,19 @@ bopP =
     )
 
 -- | Parser for primitive types
--- >>> P.parse (P.many primitivetypeP) "boolean \n string number null undefined empty any void"
+-- >>> P.parse (P.many primitivetypeP) "boolean \n string number null undefined empty any"
 -- Right [BoolType,StringType,NumberType,NullType,UndefinedType,EmptyType,AnyType]
 primitivetypeP :: Parser Type
 primitivetypeP =
-  wsP (constP "boolean" BoolType
-    P.<|> constP "string" StringType
-    P.<|> constP "number" NumberType
-    P.<|> constP "null" NullType
-    P.<|> constP "undefined" UndefinedType
-    P.<|> constP "empty" EmptyType
-    P.<|> constP "any" AnyType)
+  wsP
+    ( constP "boolean" BoolType
+        P.<|> constP "string" StringType
+        P.<|> constP "number" NumberType
+        P.<|> constP "null" NullType
+        P.<|> constP "undefined" UndefinedType
+        P.<|> constP "empty" EmptyType
+        P.<|> constP "any" AnyType
+    )
 
 pairTypeP :: Parser (Name, Type)
 pairTypeP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> typeP)
@@ -261,14 +268,21 @@ objectTypeP = wsP (ObjectType <$> braces (Map.fromList <$> pairsTypeP))
 
 -- >>> P.parse (typeP) "number"
 -- Right NumberType
+
+-- >>> P.parse (P.many typeP) "(string, boolean)  : number boolean | string | number"
+-- Right [FunctionType [StringType,BoolType] NumberType,UnionType [BoolType,StringType,NumberType]]
+
 typeP :: Parser Type
 typeP =
   maybetypeP
-  P.<|> uniontypeP
-  P.<|> primitivetypeP
-    P.<|> objectTypeP >>= \t -> case t of
-      UnionType [m] -> return m -- remove redundant union
-      _ -> return t
+    P.<|> uniontypeP
+    P.<|> primitivetypeP
+    P.<|> functiontypeP
+    P.<|> objectTypeP
+    >>= \t ->
+      case t of
+        UnionType [m] -> return m -- remove redundant union
+        _ -> return t
 
 -- >>> P.parse (P.many uniontypeP) "boolean | string | number"
 -- Right [UnionType [BoolType,StringType,NumberType]]
@@ -282,13 +296,21 @@ uniontypeP = wsP (UnionType <$> P.sepBy1 primitivetypeP (wsP (P.char '|')))
 maybetypeP :: Parser Type
 maybetypeP = wsP (MaybeType <$> (P.char '?' *> primitivetypeP))
 
+-- >>> P.parse (P.many functiontypeP) "(boolean, string): number"
+-- Right [FunctionType [BoolType,StringType] NumberType]
+functiontypeP :: Parser Type
+functiontypeP = wsP (FunctionType <$> parens (P.sepBy typeP (wsP (P.char ','))) <*> (wsP (P.string ":") *> typeP))
+
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
 -- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
 
 -- | Parser for function calls
 
--- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
--- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]
+-- >>> P.parse (P.many callP) "f()  f(1) f(1, 2)"
+-- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)]]
+
+-- >>>  P.parse (P.many callP) "f(true, 2, \"str\")"
+-- Right [Call "f" [Val (BoolVal True),Val (NumberVal 2),Val (StringVal "str")]]
 callP :: Parser Expression
 callP = Call <$> funcNameP <*> parens (P.sepBy expP (wsP (P.char ',')))
 
@@ -312,6 +334,12 @@ assignP =
 ifP :: Parser Statement
 ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else" *> braces blockP)
 
+-- >>> P.parse blockP "const x = 1"
+-- Right (Block [Assign (Name "x") (Val (NumberVal 1))])
+
+-- >>> P.parse expP "x > 1"
+-- Right (Var (Name "x"))
+
 -- ifP = do
 --   stringP "if"
 --   cond <- parens expP
@@ -320,7 +348,7 @@ ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else"
 --   elseBlock <- braces blockP
 --   return $ If cond thenBlock elseBlock
 
--- >>> P.parse ifP "if (x > 0) {x = 1} else {x = 2}"
+-- >>> P.parse ifP "if (x > 0) {const x = 1} else {const x = 2}"
 -- Left "No parses"
 emptyP = Empty <$ stringP ";"
 
