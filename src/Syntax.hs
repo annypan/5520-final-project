@@ -17,7 +17,7 @@ data Statement
   | If Expression Block Block -- if e then s1 else s2 end
   | While Expression Block -- while e do s end
   | Empty -- ';'
-  | For Statement Expression Expression Block -- for (s1; e1; e2) {s2}
+  | For Statement Expression Statement Block -- for (s1; e1; e2) {s2}
   | Return Expression -- return e
   | FunctionDef FuncName Type Block -- function f(x1, ..., xn) s -- should actually be functype
   deriving (Eq, Show)
