@@ -249,6 +249,17 @@ checkBlock (Block statements) = do
     results <- mapM checkStatement statements
     return (concat results)
 
+checkReturnType :: Block -> Type -> State TypeDeclaration CheckResult
+checkReturnType (Block []) t = return (Failure "Empty block")
+checkReturnType (Block [s]) t = case s of
+    Return e -> do
+        t' <- synthesizeType e
+        case t' of
+            Just t'' -> return (if canBeUsedAsType t'' t then Success else Failure (pretty s))
+            Nothing -> return (Failure (pretty s))
+    _ -> return (Failure "Last statement is not return")
+checkReturnType (Block (s : ss)) t = checkReturnType (Block ss) t
+
 -- Checks if a statement is valid
 checkStatement :: Statement -> State TypeDeclaration [CheckResult]
 checkStatement s@(Assign var e) = do
@@ -306,17 +317,17 @@ checkStatement s@(For s1 e1 s2 b) = case s1 of
         s2res <- checkStatement s2
         bres <- checkBlock b
         return ([Failure (pretty s1)] ++ t1res ++ s2res ++ bres)
-
 checkStatement (Return e) = return [Success]
 checkStatement st@(FunctionDef name t s) = case t of
     FunctionType args ret -> do
         store <- S.get
         S.put (Map.insert name t store)
-        -- TODO: check if the actual return type matches the declared return type
         r <- checkBlock s
-        S.put store
-        return r
-    _ -> return [Failure (pretty s)]
+        retres <- checkReturnType s ret
+        return (r ++ [retres])
+    _ -> do
+        r <- checkBlock s
+        return (Failure (pretty s) : r)
 
 -- Runs a block and returns the results and the updated type declaration
 runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
