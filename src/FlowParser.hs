@@ -120,10 +120,10 @@ expP = compP
       baseP
         P.<|> Op1 <$> uopP <*> compP
     baseP =
-      Var <$> varP
+      callP
+        P.<|> Var <$> varP
         P.<|> parens expP
         P.<|> Val <$> valueP
-        P.<|> callP
 
 -- | Parse an operator at a specified precedence level
 opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
@@ -415,3 +415,13 @@ blockP = Block <$> (P.many statementP >>= \s -> return (filter (/= Empty) s))
 
 parseJSFile :: String -> IO (Either P.ParseError Block)
 parseJSFile = P.parseFromFile blockP
+
+-------- for testing --------
+-- >>> P.parse blockP "function f(x: number, y: number): number {return 3;} function g(z: number, w: number): number { return 4 + f(1, 2);}"
+-- Right (Block [FunctionDef "f" (FunctionType [NumberType,NumberType] NumberType) (Block [Return (Val (NumberVal 3))]),FunctionDef "g" (FunctionType [NumberType,NumberType] NumberType) (Block [Return (Op2 (Val (NumberVal 4)) Plus (Call "f" [Val (NumberVal 1),Val (NumberVal 2)]))])])
+
+-- >>> P.parse returnP "return 4 + f(1, 2);"
+-- Right (Return (Op2 (Val (NumberVal 4)) Plus (Call "f" [Val (NumberVal 1),Val (NumberVal 2)])))
+
+-- >>> P.parse expP "4 + f(1, 2)"
+-- Right (Op2 (Val (NumberVal 4)) Plus (Call "f" [Val (NumberVal 1),Val (NumberVal 2)]))
