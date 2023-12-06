@@ -1,8 +1,8 @@
 function f(x: number, y: number): number {
-    return 3;
+    return x + y;
 }
 function g(z: number, w: number): number {
-    return 4 + f(1, 2);
+    return z - w + f(1, 2);
 }
 function h(h: string): string {
     return g(3, 4);

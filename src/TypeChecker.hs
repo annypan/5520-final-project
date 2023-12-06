@@ -322,12 +322,20 @@ checkStatement st@(FunctionDef name t s) = case t of
     FunctionType args ret -> do
         store <- S.get
         S.put (Map.insert name t store)
+        _ <- addDefForFunctionArgs args
         r <- checkBlock s
         retres <- checkReturnType s ret
         return (r ++ [retres])
     _ -> do
         r <- checkBlock s
         return (Failure (pretty s) : r)
+
+addDefForFunctionArgs :: [(Name, Type)] -> State TypeDeclaration ()
+addDefForFunctionArgs [] = return ()
+addDefForFunctionArgs ((name, t) : args) = do
+    store <- S.get
+    S.put (Map.insert name t store)
+    addDefForFunctionArgs args
 
 -- Runs a block and returns the results and the updated type declaration
 runBlock :: Block -> State TypeDeclaration ([CheckResult], TypeDeclaration)
