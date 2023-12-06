@@ -38,6 +38,9 @@ statementP =
     P.<|> updateP
     P.<|> ifP
     P.<|> whileP
+    -- P.<|> forP
+    P.<|> returnP
+    P.<|> functionDefP
 
 -- | Parsing Constants
 valueP :: Parser Value
@@ -364,8 +367,8 @@ ifP = If <$> (stringP "if" *> parens expP) <*> braces blockP <*> (stringP "else"
 -- >>> P.parse expP "x > 1"
 -- Right (Op2 (Var (Name "x")) Gt (Val (NumberVal 1)))
 
--- >>> P.parse ifP "if (x > 0) { x = 1; } else { x = 2; }"
--- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Val (NumberVal 1))]) (Block [Update (Name "x") (Val (NumberVal 2))]))
+-- >>> P.parse ifP "if (x > 0) { x = 1; y = 2;} else { x = 2; }"
+-- Right (If (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Val (NumberVal 1)),Update (Name "y") (Val (NumberVal 2))]) (Block [Update (Name "x") (Val (NumberVal 2))]))
 
 emptyP :: Parser Statement
 emptyP = Empty <$ stringP ";"
@@ -374,7 +377,42 @@ whileP :: Parser Statement
 whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
 
 -- >>> P.parse whileP "while (x > 0) {x = x - 1;}"
--- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1))),Empty]))
+-- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
+
+-- >>> P.parse forP "for (let i = 0; i < 10; i = i + 1) { x = x + 1; }"
+
+forP :: Parser Statement
+forP = undefined
+
+-- For
+--   <$> ( stringP "for"
+--           *> parens
+--             (statementP
+--                 <* wsP (P.char ';')
+--                 <*> expP
+--                 <* wsP (P.char ';')
+--                 <*> updateP
+--             )
+--       )
+--   <*> braces blockP
+
+-- >>> P.parse returnP "return x;"
+-- Right (Return (Var (Name "x")))
+
+-- >>> P.parse returnP "return x+y;"
+-- Right (Return (Op2 (Var (Name "x")) Plus (Var (Name "y"))))
+returnP :: Parser Statement
+returnP = Return <$> (stringP "return" *> expP)
+
+-- >>> P.parse functionDefP "function f(x: number, y: number): number { return x + y; }"
+-- Right (FunctionDef "f" (FunctionType [NumberType,NumberType] NumberType) (Block [Return (Op2 (Var (Name "x")) Plus (Var (Name "y")))]))
+
+functionDefP :: Parser Statement
+functionDefP =
+  FunctionDef
+    <$> (stringP "function" *> funcNameP)
+    <*> functiontypeP
+    <*> braces blockP
 
 -- Parses blocks separated by semicolons
 blockP :: Parser Block
