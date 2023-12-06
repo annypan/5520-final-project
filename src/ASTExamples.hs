@@ -109,3 +109,31 @@ wFunctionDef =
         (FunctionType [NumberType, NumberType] NumberType)
         (Block [Return (Op2 (Var (Name "x")) Plus (Var (Name "y")))])
     ]
+
+-- forWrongVar.js
+wForWrongVar :: Block
+wForWrongVar =
+  Block
+    [ Assign (Name "x") (Val (NumberVal 0)),
+      Assign (Name "y") (Val (BoolVal True)),
+      Assign (Name "z") (Val (StringVal "checker")),
+      For
+        (Assign (Name "i") (Val (NumberVal 0)))
+        (Op2 (Var (Name "i")) Lt (Val (NumberVal 10)))
+        (Update (Name "j") (Op2 (Var (Name "i")) Plus (Val (NumberVal 1))))
+        (Block [Update (Name "x") (Op2 (Var (Name "x")) Plus (Val (NumberVal 1))), Update (Name "y") (Val (BoolVal False)), Update (Name "z") (Val (StringVal "checker"))])
+    ]
+
+-- forNoAssign.js
+wForNoAssign :: Block
+wForNoAssign =
+  Block
+    [ Assign (Name "x") (Val (NumberVal 0)),
+      Assign (Name "y") (Val (BoolVal True)),
+      Assign (Name "z") (Val (StringVal "checker")),
+      For
+        (Update (Name "i") (Val (NumberVal 0)))
+        (Op2 (Var (Name "i")) Lt (Val (NumberVal 10)))
+        (Update (Name "i") (Op2 (Var (Name "i")) Plus (Val (NumberVal 1))))
+        (Block [Update (Name "x") (Op2 (Var (Name "x")) Plus (Val (NumberVal 1))), Update (Name "y") (Val (BoolVal False)), Update (Name "z") (Val (StringVal "checker"))])
+    ]

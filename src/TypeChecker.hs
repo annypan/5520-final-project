@@ -286,14 +286,27 @@ checkStatement st@(While e s) = do
     res <- checkBlock s
     return ((if isJust re then Success else Failure (pretty e)): res)
 checkStatement Empty = return [Success]
-checkStatement s@(For s1 e1 e2 s2) = case s1 of
+checkStatement s@(For s1 e1 s2 b) = case s1 of
     Assign _ _ -> do
-        t1 <- synthesizeType e1
-        case t1 of
-            Just BoolType -> do -- e1 is the stop condition: must be bool
-                checkBlock s2
-            _ -> return [Failure (pretty s)]
-    _ -> return [Failure (pretty s)]
+        s1res <- checkStatement s1
+        t1res <- do
+            t1 <- synthesizeType e1
+            case t1 of
+                Just BoolType -> return [Success]
+                _ -> return [Failure (pretty e1)]
+        s2res <- checkStatement s2
+        bres <- checkBlock b
+        return (s1res ++ t1res ++ s2res ++ bres)
+    _ -> do
+        t1res <- do
+            t1 <- synthesizeType e1
+            case t1 of
+                Just BoolType -> return [Success]
+                _ -> return [Failure (pretty e1)]
+        s2res <- checkStatement s2
+        bres <- checkBlock b
+        return ([Failure (pretty s1)] ++ t1res ++ s2res ++ bres)
+
 checkStatement (Return e) = return [Success]
 checkStatement st@(FunctionDef name t s) = case t of
     FunctionType args ret -> do

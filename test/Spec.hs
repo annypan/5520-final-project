@@ -59,9 +59,13 @@ prop_anytype_matches_any_uop uop = doesUopMatchType uop AnyType
 prop_anytype_matches_any_bop :: Bop -> Type -> Bool
 prop_anytype_matches_any_bop bop = doesBopMatchType bop AnyType
 
--- if a bop matches a type, then it also matches the type in reverse order
-prop_bop_match_is_commutative :: Bop -> Type -> Type -> Bool
-prop_bop_match_is_commutative bop t1 t2 = doesBopMatchType bop t1 t2 == doesBopMatchType bop t2 t1
+isNotIn :: Bop -> Bool
+isNotIn In = False
+isNotIn _ = True
+
+-- if a bop matches a type, then it also matches the type in reverse order (except IN)
+prop_bop_match_is_commutative :: Bop -> Type -> Type -> QC.Property
+prop_bop_match_is_commutative bop t1 t2 = isNotIn bop QC.==> doesBopMatchType bop t1 t2 == doesBopMatchType bop t2 t1
 
 typecheckerAllQC :: IO ()
 typecheckerAllQC = do
@@ -104,6 +108,8 @@ tParseFiles =
         "while" ~: p "js/while.js" wWhile,
         "whileCondConflict" ~: p "js/whileCondConflict.js" wWhileCondConflict,
         "for" ~: p "js/for.js" wFor,
+        "forWrongVar" ~: p "js/forWrongVar.js" wForWrongVar,
+        "forNoAssign" ~: p "js/forNoAssign.js" wForNoAssign,
         "functionDef" ~: p "js/functionDef.js" wFunctionDef
       ]
   where

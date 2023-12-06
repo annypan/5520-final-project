@@ -277,7 +277,7 @@ objectTypeP = wsP (ObjectType <$> braces (Map.fromList <$> pairsTypeP))
 -- >>> P.parse (typeP) "number"
 -- Right NumberType
 
--- >>> P.parse (P.many typeP) "(string, boolean)  : number boolean | string | number"
+-- >>> P.parse (P.many typeP) "(x: string, y: boolean)  : number boolean | string | number"
 -- Right [FunctionType [StringType,BoolType] NumberType,UnionType [BoolType,StringType,NumberType]]
 
 typeP :: Parser Type
