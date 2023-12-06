@@ -112,13 +112,26 @@ genStringLit = escape <$> QC.listOf (QC.elements stringLitChars)
 shrinkStringLit :: String -> [String]
 shrinkStringLit s = Prelude.filter (/= '\"') <$> shrink s
 
+genValueCandidate :: Gen Value
+genValueCandidate =
+  QC.oneof
+    [ BoolVal <$> arbitrary,
+      StringVal <$> genStringLit,
+      NumberVal <$> arbitrary,
+      pure UndefinedVal,
+      pure NullVal
+    ]
+
+genValueMap :: Gen (Map String Value)
+genValueMap = QC.listOf1 ((,) <$> genName <*> genValueCandidate) >>= \ts -> pure (fromList ts)
+
 instance Arbitrary Value where
   arbitrary =
     QC.oneof
       [ BoolVal <$> arbitrary,
         StringVal <$> genStringLit,
         NumberVal <$> arbitrary,
-        -- , ObjectVal <$> arbitrary -- TODO: add later
+        ObjectVal <$> genValueMap,
         pure UndefinedVal,
         pure NullVal
       ]
@@ -126,17 +139,14 @@ instance Arbitrary Value where
   shrink (BoolVal b) = BoolVal <$> shrink b
   shrink (StringVal s) = StringVal <$> shrinkStringLit s
   shrink (NumberVal n) = NumberVal <$> shrink n
-  -- shrink (ObjectVal o) = ObjectVal <$> shrink o
+  shrink (ObjectVal m) = [ObjectVal m' | m' <- shrink m, "" `notElem` keys m']
   shrink _ = []
 
-genUnionTypeCandidate :: Gen Type
-genUnionTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
-
-genMaybeTypeCandidate :: Gen Type
-genMaybeTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
+genSimpleTypeCandidate :: Gen Type
+genSimpleTypeCandidate = QC.elements [BoolType, StringType, NumberType, NullType, UndefinedType, EmptyType, AnyType]
 
 genMap :: Gen (Map String Type)
-genMap = QC.listOf1 ((,) <$> genName <*> genUnionTypeCandidate) >>= \ts -> pure (fromList ts)
+genMap = QC.listOf1 ((,) <$> genName <*> genSimpleTypeCandidate) >>= \ts -> pure (fromList ts)
 
 instance Arbitrary Type where
   arbitrary =
@@ -148,9 +158,9 @@ instance Arbitrary Type where
         pure UndefinedType,
         pure EmptyType,
         pure AnyType,
-        UnionType <$> ((++) <$> QC.listOf1 genUnionTypeCandidate <*> QC.listOf1 genUnionTypeCandidate),
-        MaybeType <$> genMaybeTypeCandidate,
-        FunctionType <$> QC.listOf1 genMaybeTypeCandidate <*> genMaybeTypeCandidate,
+        UnionType <$> ((++) <$> QC.listOf1 genSimpleTypeCandidate <*> QC.listOf1 genSimpleTypeCandidate),
+        MaybeType <$> genSimpleTypeCandidate,
+        FunctionType <$> QC.listOf1 genSimpleTypeCandidate <*> genSimpleTypeCandidate,
         ObjectType <$> genMap
       ]
   shrink BoolType = []

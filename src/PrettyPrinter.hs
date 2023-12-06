@@ -41,9 +41,9 @@ instance PP Bop where
   pp In = PP.text "in"
 
 instance PP (Map Name Value) where
-  pp m = PP.braces (PP.vcat (map ppa (Map.toList m)))
-    where
-      ppa (n, v) = PP.text n <+> PP.text "=" <+> pp v
+  pp m = PP.braces (PP.hsep (PP.punctuate PP.comma (fmap ppa (Map.toList m))))
+      where
+        ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
 
 instance PP Value where
     pp (BoolVal b) = pp b
@@ -52,12 +52,6 @@ instance PP Value where
     pp (ObjectVal o) = pp o
     pp UndefinedVal = PP.text "undefined"
     pp NullVal = PP.text "null"
-
-instance PP a => PP (Map Value a) where
-  pp m = PP.braces (PP.vcat (map ppa (Map.toList m)))
-    where
-      ppa (StringVal s, v2) = PP.text s <+> PP.text "=" <+> pp v2
-      ppa (v1, v2) = PP.brackets (pp v1) <+> PP.text "=" <+> pp v2
 
 instance PP Var where
   pp (Name n) = PP.text n
@@ -97,7 +91,7 @@ instance PP Statement where
 instance PP Block where
   pp (Block [s]) = pp s
   pp (Block ss) = PP.vcat (Prelude.map pp ss)
-  
+
 instance PP Expression where
   pp (Val v) = pp v
   pp (Var var) = pp var
