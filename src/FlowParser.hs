@@ -38,7 +38,7 @@ statementP =
     P.<|> updateP
     P.<|> ifP
     P.<|> whileP
-    -- P.<|> forP
+    P.<|> forP
     P.<|> returnP
     P.<|> functionDefP
 
@@ -379,22 +379,11 @@ whileP = While <$> (stringP "while" *> parens expP) <*> braces blockP
 -- >>> P.parse whileP "while (x > 0) {x = x - 1;}"
 -- Right (While (Op2 (Var (Name "x")) Gt (Val (NumberVal 0))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Minus (Val (NumberVal 1)))]))
 
--- >>> P.parse forP "for (let i = 0; i < 10; i = i + 1) { x = x + 1; }"
+-- >>> P.parse forP "for (let i = 0; i < 10; i = i + 1) {x = x + 1;}"
+-- Right (For (Assign (Name "i") (Val (NumberVal 0))) (Op2 (Var (Name "i")) Lt (Val (NumberVal 10))) (Update (Name "i") (Op2 (Var (Name "i")) Plus (Val (NumberVal 1)))) (Block [Update (Name "x") (Op2 (Var (Name "x")) Plus (Val (NumberVal 1)))]))
 
 forP :: Parser Statement
-forP = undefined
-
--- For
---   <$> ( stringP "for"
---           *> parens
---             (statementP
---                 <* wsP (P.char ';')
---                 <*> expP
---                 <* wsP (P.char ';')
---                 <*> updateP
---             )
---       )
---   <*> braces blockP
+forP = For <$> (stringP "for" *> stringP "(" *> statementP) <* stringP ";" <*> expP <* stringP ";" <*> statementP <* stringP ")" <*> braces blockP
 
 -- >>> P.parse returnP "return x;"
 -- Right (Return (Var (Name "x")))
