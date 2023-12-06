@@ -115,7 +115,8 @@ tParseFiles =
 
 test_checker_unit_all :: IO Counts
 test_checker_unit_all =
-  runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testSynthesizeType, testResolveVarType, testCheckStatement, testRunBlock]
+    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testSynthesizeType, testResolveVarType,
+                          testDoesExpressionMatchType, testCheckStatement, testRunBlock]
 
 testCanBeUsedAsType :: Test
 testCanBeUsedAsType =
@@ -164,19 +165,24 @@ testResolveVarType =
       S.evalState (resolveVarType (Name "k")) mapLayered ~?= Nothing
     ]
 
+convertToBool :: CheckResult -> Bool
+convertToBool Success = True
+convertToBool (Failure _) = False
+
 testDoesExpressionMatchType :: Test
 testDoesExpressionMatchType =
-  TestList
-    [ S.evalState (doesExpressionMatchType (Val (BoolVal True)) BoolType) Map.empty ~?= Success,
-      S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) BoolType) Map.empty ~?= Failure,
-      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", BoolType)]) ~?= Success,
-      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty ~?= Failure,
-      S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", BoolType)]) ~?= Success,
-      S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)]) ~?= Success,
-      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure,
-      S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty ~?= Success,
-      S.evalState (doesExpressionMatchType (Var (Dot objectVarLayered "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
-      S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty ~?= Success
+    TestList
+    [
+        convertToBool (S.evalState (doesExpressionMatchType (Val (BoolVal True)) BoolType) Map.empty) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) BoolType) Map.empty) ~?= False,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", BoolType)])) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty) ~?= False,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", BoolType)])) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)])) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)])) ~?= False,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Dot objectVarLayered "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty) ~?= True,
+        convertToBool (S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty) ~?= True
     ]
 
 testSynthesizeType :: Test
@@ -205,16 +211,23 @@ testSynthesizeType =
 testCheckStatement :: Test
 testCheckStatement =
   TestList
-    [ S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= [Success],
-      S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= [Failure]
+    [ convertToBool <$> S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= [True],
+      convertToBool <$> S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= [False]
     ]
+
+convertFstToBool :: ([CheckResult], Map String Type) -> ([Bool], Map String Type)
+convertFstToBool (res, s) = (convertToBool <$> res, s)
 
 testRunBlock :: Test
 testRunBlock =
   TestList
-    [ S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "x") (Val (NumberVal 1))])) Map.empty ~?= ([Success, Failure], Map.fromList [("x", BoolType)]),
-      S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True))])) (Map.fromList [("x", NumberType)]) ~?= ([Failure], Map.fromList [("x", NumberType)]),
-      S.evalState
+    [ convertFstToBool (
+        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "x") (Val (NumberVal 1))])) Map.empty
+      ) ~?= ([True, False], Map.fromList [("x", BoolType)]),
+      convertFstToBool (
+        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True))])) (Map.fromList [("x", NumberType)])
+      ) ~?= ([False], Map.fromList [("x", NumberType)]),
+      convertFstToBool (S.evalState
         ( runBlock
             ( Block
                 [ Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))),
@@ -222,9 +235,9 @@ testRunBlock =
                 ]
             )
         )
-        Map.empty
-        ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))]),
-      S.evalState
+        Map.empty)
+        ~?= ([True, False], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))]),
+      convertFstToBool (S.evalState
         ( runBlock
             ( Block
                 [ Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))),
@@ -232,8 +245,8 @@ testRunBlock =
                 ]
             )
         )
-        Map.empty
-        ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))])
+        Map.empty)
+        ~?= ([True, False], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))])
     ]
 
 main :: IO ()

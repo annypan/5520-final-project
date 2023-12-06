@@ -1,4 +1,4 @@
-const x = true;
+let x = true;
 var y = 2;
 if (x) {
     x = false;

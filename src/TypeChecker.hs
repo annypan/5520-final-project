@@ -15,7 +15,6 @@ type TypeDeclaration = Map Name Type
 data CheckResult
   = Success
   | Failure String
-  | Unknown
   deriving (Eq, Show)
 
 -- Checks if a type is a primitive type
@@ -120,11 +119,9 @@ doesCompMatchType :: Bop -> Type -> Type -> Bool
 doesCompMatchType bop t1 t2 = case (t1, t2) of
     (AnyType, _) -> True
     (_, AnyType) -> True
-    (NumberType, NumberType) -> True
-    (StringType, StringType) -> True
     (UnionType ts1, UnionType ts2) ->
         all (\t1 -> all (doesCompMatchType bop t1) ts2) ts1
-    _ -> False
+    _ -> t1 == t2
 
 -- Checks if a binary operator can be used with given types
 doesBopMatchType :: Bop -> Type -> Type -> Bool
@@ -270,7 +267,7 @@ checkStatement s@(Assign var e) = do
                             S.put (Map.insert name t store)
                             return [Success]
                         Nothing -> return [Failure (pretty s)]
-                _ -> return [Unknown]
+                _ -> return [Failure (pretty s)]
 checkStatement s@(Update var e) = do
     store <- S.get
     varType <- resolveVarType var
