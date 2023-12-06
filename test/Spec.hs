@@ -21,8 +21,8 @@ isNotFuncType _ = True
 prop_roundtrip_val :: Value -> Bool
 prop_roundtrip_val v = P.parse valueP (pretty v) == Right v
 
-prop_roundtrip_type :: Type -> QC.Property -- don't test for func type because we ignore some info when parsing
-prop_roundtrip_type t = isNotFuncType t QC.==> P.parse typeP (pretty t) == Right t
+prop_roundtrip_type :: Type -> Bool
+prop_roundtrip_type t = P.parse typeP (pretty t) == Right t
 
 prop_roundtrip_exp :: Expression -> Bool
 prop_roundtrip_exp e = P.parse expP (pretty e) == Right e
@@ -211,7 +211,7 @@ testSynthesizeType =
       S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Nothing,
       S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (NumberVal 2)))) Map.empty ~?= Just NumberType,
       S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (BoolVal True)))) Map.empty ~?= Nothing,
-      S.evalState (synthesizeType (Call "f" [Val (NumberVal 1), Val (BoolVal True)])) (Map.fromList [("f", FunctionType [NumberType, BoolType] NumberType)]) ~?= Just NumberType
+      S.evalState (synthesizeType (Call "f" [Val (NumberVal 1), Val (BoolVal True)])) (Map.fromList [("f", FunctionType [("x", NumberType), ("y", BoolType)] NumberType)]) ~?= Just NumberType
     ]
 
 testCheckStatement :: Test

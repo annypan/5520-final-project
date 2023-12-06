@@ -310,8 +310,8 @@ fpairTypeP = wsP ((,) <$> nameP <* wsP (P.char ':') <*> typeP)
 -- >>> P.parse (P.many fpairTypeP) "x: number"
 -- Right [("x",NumberType)]
 
-fpairsTypeP :: Parser [Type]
-fpairsTypeP = parens (P.sepBy pairTypeP (wsP (P.char ',')) >>= \ts -> return (map snd ts))
+fpairsTypeP :: Parser [(Name, Type)]
+fpairsTypeP = parens (P.sepBy pairTypeP (wsP (P.char ',')))
 
 -- >>> P.parse fpairsTypeP "(x: boolean, y: string)"
 -- Right [BoolType,StringType]
@@ -320,7 +320,7 @@ functiontypeP :: Parser Type
 functiontypeP = wsP (FunctionType <$> fpairsTypeP <*> (wsP (P.string ":") *> typeP))
 
 -- >>> P.parse functiontypeP "(x: boolean, y: string): number"
--- Right (FunctionType [BoolType,StringType] NumberType)
+-- Right (FunctionType [("x",BoolType),("y",StringType)] NumberType)
 
 -- >>> P.parse (P.many callP) "f() f(1) f(1, 2) f(1, 2, 3)"
 -- Right [Call "f" [],Call "f" [Val (NumberVal 1)],Call "f" [Val (NumberVal 1),Val (NumberVal 2)],Call "f" [Val (NumberVal 1),Val (NumberVal 2),Val (NumberVal 3)]]

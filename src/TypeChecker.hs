@@ -229,7 +229,7 @@ synthesizeType (Call fn es) = do
             case sanitizedTs of
                 Just sanitizedTs' ->
                     return (
-                        if all (uncurry canBeUsedAsType) (zip args sanitizedTs')
+                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs')
                         then Just ret
                         else Nothing)
                 Nothing -> return Nothing

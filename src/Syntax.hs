@@ -64,7 +64,7 @@ data Type
   | AnyType -- https://flow.org/en/docs/types/any/
   | UnionType [Type]
   | MaybeType Type
-  | FunctionType [Type] Type
+  | FunctionType [(Name, Type)] Type
   | ObjectType (Map String Type)
   deriving (Eq, Show, Ord)
 
@@ -160,7 +160,7 @@ instance Arbitrary Type where
         pure AnyType,
         UnionType <$> ((++) <$> QC.listOf1 genSimpleTypeCandidate <*> QC.listOf1 genSimpleTypeCandidate),
         MaybeType <$> genSimpleTypeCandidate,
-        FunctionType <$> QC.listOf1 genSimpleTypeCandidate <*> genSimpleTypeCandidate,
+        FunctionType <$> QC.listOf1 ((,) <$> genName <*> genSimpleTypeCandidate) <*> genSimpleTypeCandidate,
         ObjectType <$> genMap
       ]
   shrink BoolType = []

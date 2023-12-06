@@ -73,20 +73,22 @@ instance PP Type where
       ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
   pp (UnionType ts) = PP.hsep (PP.punctuate (PP.text "|") (fmap pp ts))
   pp (MaybeType t) = PP.text "?" <> pp t
-  pp (FunctionType args ret) = PP.parens (PP.hsep (PP.punctuate PP.comma (fmap pp args))) <+> PP.text ":" <+> pp ret
+  pp (FunctionType args ret) = PP.parens (PP.hsep (PP.punctuate PP.comma (fmap ppa args))) <+> PP.text ":" <+> pp ret
+    where
+      ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
 
 instance PP Statement where
-  pp (Assign var e) = PP.text "var " <+> pp var <+> PP.text "=" <+> pp e
+  pp (Assign var e) = PP.text "var" <+> pp var <+> PP.text "=" <+> pp e
   pp (Update var e) = pp var <+> PP.text "=" <+> pp e
   pp (If e s1 s2) =
     PP.text "if" <+> pp e <+> PP.text "then" <+> pp s1 <+> PP.text "else" <+> pp s2
   pp (While e s) = PP.text "while" <+> pp e <+> PP.text "do" <+> pp s
   pp Empty = PP.text ";"
   pp (For s1 e1 e2 s2) =
-    PP.text "for" -- TODO: refine
+    PP.text "for" <+> pp s1 <+> PP.text ";" <+> pp e1 <+> PP.text ";" <+> pp e2 <+> PP.text "do" <+> pp s2
   pp (Return e) = PP.text "return" <+> pp e
   pp (FunctionDef funcName funcType block) =
-    PP.text "function" -- TODO: refine
+    PP.text "function"
 
 instance PP Block where
   pp (Block [s]) = pp s

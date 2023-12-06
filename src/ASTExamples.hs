@@ -106,7 +106,7 @@ wFunctionDef =
   Block
     [ FunctionDef
         "f"
-        (FunctionType [NumberType, NumberType] NumberType)
+        (FunctionType [("x", NumberType), ("y", NumberType)] NumberType)
         (Block [Return (Op2 (Var (Name "x")) Plus (Var (Name "y")))])
     ]
 
