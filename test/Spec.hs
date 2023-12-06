@@ -1,18 +1,17 @@
+import ASTExamples
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import FlowParser
 import Lib
+import Parser qualified as P
+import PrettyPrinter
+import State (State)
+import State qualified as S
+import Syntax
 import Test.HUnit
 import Test.QuickCheck qualified as QC
-import Syntax
-import Parser qualified as P
-import FlowParser
-import PrettyPrinter
-import qualified Data.Map as Map
-import Data.Map (Map)
-
-import qualified Data.Set as Set
 import TypeChecker
-import State (State)
-import qualified State as S
-import ASTExamples
 
 isNotFuncType :: Type -> Bool
 isNotFuncType (FunctionType _ _) = False
@@ -50,7 +49,7 @@ prop_type_as_itself t = canBeUsedAsType t t
 -- t1 <= t2, t2 <= t3 => t1 <= t3
 prop_type_is_transitive :: Type -> Type -> Type -> QC.Property
 prop_type_is_transitive t1 t2 t3 =
-    canBeUsedAsType t1 t2 && canBeUsedAsType t2 t3 QC.==> canBeUsedAsType t1 t3
+  canBeUsedAsType t1 t2 && canBeUsedAsType t2 t3 QC.==> canBeUsedAsType t1 t3
 
 -- AnyType matches any uop
 prop_anytype_matches_any_uop :: Uop -> Bool
@@ -90,7 +89,7 @@ test_parser_unit_all :: IO Counts
 test_parser_unit_all =
   runTestTT $
     TestList
-      [ tParseFiles]
+      [tParseFiles]
 
 tParseFiles :: Test
 tParseFiles =
@@ -103,7 +102,9 @@ tParseFiles =
         "ifLiteral" ~: p "js/ifLiteral.js" wIfLiteral,
         "ifBranchConflict" ~: p "js/ifBranchConflict.js" wIfBranchConflict,
         "while" ~: p "js/while.js" wWhile,
-        "whileCondConflict" ~: p "js/whileCondConflict.js" wWhileCondConflict
+        "whileCondConflict" ~: p "js/whileCondConflict.js" wWhileCondConflict,
+        "for" ~: p "js/for.js" wFor,
+        "functionDef" ~: p "js/functionDef.js" wFunctionDef
       ]
   where
     p fn ast = do
@@ -112,38 +113,35 @@ tParseFiles =
         Left _ -> assert False
         Right ast' -> assert (ast == ast')
 
-
 test_checker_unit_all :: IO Counts
 test_checker_unit_all =
-    runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testSynthesizeType, testResolveVarType, testCheckStatement, testRunBlock]
+  runTestTT $ TestList [testCanBeUsedAsType, testGetType, testDoesExpressionMatchType, testSynthesizeType, testResolveVarType, testCheckStatement, testRunBlock]
 
 testCanBeUsedAsType :: Test
 testCanBeUsedAsType =
-    TestList
-        [
-            "BoolType can be used as BoolType" ~: canBeUsedAsType BoolType BoolType ~?= True,
-            "BoolType can be used as AnyType" ~: canBeUsedAsType BoolType AnyType ~?= True,
-            "NullType can be used as AnyType" ~: canBeUsedAsType NullType AnyType ~?= True,
-            "BoolType can be used as MaybeType BoolType" ~: canBeUsedAsType BoolType (MaybeType BoolType) ~?= True,
-            "NumberType can be used as UnionType [NumberType, StringType]" ~: canBeUsedAsType NumberType (UnionType [NumberType, StringType]) ~?= True,
-            "MaybeType BoolType can NOT be used as BoolType" ~: canBeUsedAsType (MaybeType BoolType) BoolType ~?= False,
-            "ObjecType can NOT be used as EmptyType" ~: canBeUsedAsType (ObjectType Map.empty) EmptyType ~?= False,
-            "MaybeType BoolType can be used as UnionType [BoolType, UndefinedType, NullType]" ~: canBeUsedAsType (MaybeType BoolType) (UnionType [BoolType, UndefinedType, NullType]) ~?= True,
-            "UnionType [BoolType, NullType] can be used as MaybeType BoolType" ~: canBeUsedAsType (UnionType [BoolType, UndefinedType, NullType]) (MaybeType BoolType) ~?= True
-        ]
+  TestList
+    [ "BoolType can be used as BoolType" ~: canBeUsedAsType BoolType BoolType ~?= True,
+      "BoolType can be used as AnyType" ~: canBeUsedAsType BoolType AnyType ~?= True,
+      "NullType can be used as AnyType" ~: canBeUsedAsType NullType AnyType ~?= True,
+      "BoolType can be used as MaybeType BoolType" ~: canBeUsedAsType BoolType (MaybeType BoolType) ~?= True,
+      "NumberType can be used as UnionType [NumberType, StringType]" ~: canBeUsedAsType NumberType (UnionType [NumberType, StringType]) ~?= True,
+      "MaybeType BoolType can NOT be used as BoolType" ~: canBeUsedAsType (MaybeType BoolType) BoolType ~?= False,
+      "ObjecType can NOT be used as EmptyType" ~: canBeUsedAsType (ObjectType Map.empty) EmptyType ~?= False,
+      "MaybeType BoolType can be used as UnionType [BoolType, UndefinedType, NullType]" ~: canBeUsedAsType (MaybeType BoolType) (UnionType [BoolType, UndefinedType, NullType]) ~?= True,
+      "UnionType [BoolType, NullType] can be used as MaybeType BoolType" ~: canBeUsedAsType (UnionType [BoolType, UndefinedType, NullType]) (MaybeType BoolType) ~?= True
+    ]
 
 testGetType :: Test
 testGetType =
-    TestList
-        [
-            getType (BoolVal True) ~?= BoolType,
-            getType (StringVal "hello") ~?= StringType,
-            getType (NumberVal 1) ~?= NumberType,
-            getType (ObjectVal (Map.fromList [("x", NumberVal 1), ("y", StringVal "ans")]))
-                ~?= ObjectType (Map.fromList [("x", NumberType), ("y", StringType)]),
-            getType UndefinedVal ~?= UndefinedType,
-            getType NullVal ~?= NullType
-        ]
+  TestList
+    [ getType (BoolVal True) ~?= BoolType,
+      getType (StringVal "hello") ~?= StringType,
+      getType (NumberVal 1) ~?= NumberType,
+      getType (ObjectVal (Map.fromList [("x", NumberVal 1), ("y", StringVal "ans")]))
+        ~?= ObjectType (Map.fromList [("x", NumberType), ("y", StringType)]),
+      getType UndefinedVal ~?= UndefinedType,
+      getType NullVal ~?= NullType
+    ]
 
 objectVar :: Expression
 objectVar = Val (ObjectVal (Map.fromList [("x", NumberVal 1)]))
@@ -158,86 +156,94 @@ mapLayered :: Map String Type
 mapLayered = Map.fromList [("x", NumberType), ("y", ObjectType (Map.fromList [("z", NumberType)]))]
 
 testResolveVarType :: Test
-testResolveVarType = 
-    TestList
-    [
-        S.evalState (resolveVarType (Name "x")) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
-        S.evalState (resolveVarType (Dot (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
-        S.evalState (resolveVarType (Proj (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
-        S.evalState (resolveVarType (Name "k")) mapLayered ~?= Nothing
+testResolveVarType =
+  TestList
+    [ S.evalState (resolveVarType (Name "x")) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
+      S.evalState (resolveVarType (Dot (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
+      S.evalState (resolveVarType (Proj (Var (Name "y")) "z")) mapLayered ~?= Just NumberType,
+      S.evalState (resolveVarType (Name "k")) mapLayered ~?= Nothing
     ]
 
 testDoesExpressionMatchType :: Test
 testDoesExpressionMatchType =
-    TestList
-    [
-        S.evalState (doesExpressionMatchType (Val (BoolVal True)) BoolType) Map.empty ~?= Success,
-        S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) BoolType) Map.empty ~?= Failure,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", BoolType)]) ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty ~?= Failure,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", BoolType)]) ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)]) ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure,
-        S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Dot objectVarLayered "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
-        S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty ~?= Success
+  TestList
+    [ S.evalState (doesExpressionMatchType (Val (BoolVal True)) BoolType) Map.empty ~?= Success,
+      S.evalState (doesExpressionMatchType (Val (ObjectVal Map.empty)) BoolType) Map.empty ~?= Failure,
+      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", BoolType)]) ~?= Success,
+      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) Map.empty ~?= Failure,
+      S.evalState (doesExpressionMatchType (Var (Name "x")) (MaybeType BoolType)) (Map.fromList [("x", BoolType)]) ~?= Success,
+      S.evalState (doesExpressionMatchType (Var (Name "x")) (UnionType [BoolType, NumberType])) (Map.fromList [("x", BoolType)]) ~?= Success,
+      S.evalState (doesExpressionMatchType (Var (Name "x")) BoolType) (Map.fromList [("x", MaybeType NumberType)]) ~?= Failure,
+      S.evalState (doesExpressionMatchType (Var (Dot objectVar "x")) NumberType) Map.empty ~?= Success,
+      S.evalState (doesExpressionMatchType (Var (Dot objectVarLayered "y")) (ObjectType (Map.fromList [("z", NumberType)]))) Map.empty ~?= Success,
+      S.evalState (doesExpressionMatchType (Var (Dot (Var (Dot objectVarLayered "y")) "z")) NumberType) Map.empty ~?= Success
     ]
 
 testSynthesizeType :: Test
-testSynthesizeType = 
-    TestList
-    [
-        S.evalState (synthesizeType (Val (BoolVal True))) Map.empty ~?= Just BoolType,
-        S.evalState (synthesizeType (Val (ObjectVal Map.empty))) Map.empty ~?= Just (ObjectType Map.empty),
-        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", BoolType)]) ~?= Just BoolType,
-        S.evalState (synthesizeType (Var (Name "x"))) Map.empty ~?= Nothing,
-        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
-        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", UnionType [BoolType, NumberType])]) ~?= Just (UnionType [BoolType, NumberType]),
-        S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
-        S.evalState (synthesizeType (Var (Dot objectVar "x"))) Map.empty ~?= Just NumberType,
-        S.evalState (synthesizeType (Var (Dot objectVarLayered "y"))) Map.empty ~?= Just (ObjectType (Map.fromList [("z", NumberType)])),
-        S.evalState (synthesizeType (Var (Dot (Var (Dot objectVarLayered "y")) "z"))) Map.empty ~?= Just NumberType,
-        S.evalState (synthesizeType (Op1 Not (Val (BoolVal True)))) Map.empty ~?= Just BoolType,
-        S.evalState (synthesizeType (Op1 Neg (Val (BoolVal True)))) Map.empty ~?= Nothing,
-        S.evalState (synthesizeType (Op1 Neg (Val (NumberVal 1)))) Map.empty ~?= Just NumberType,
-        S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
-        S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Nothing,
-        S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (NumberVal 2)))) Map.empty ~?= Just NumberType,
-        S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (BoolVal True)))) Map.empty ~?= Nothing,
-        S.evalState (synthesizeType (Call "f" [Val (NumberVal 1), Val (BoolVal True)])) (Map.fromList [("f", FunctionType [NumberType, BoolType] NumberType)]) ~?= Just NumberType
+testSynthesizeType =
+  TestList
+    [ S.evalState (synthesizeType (Val (BoolVal True))) Map.empty ~?= Just BoolType,
+      S.evalState (synthesizeType (Val (ObjectVal Map.empty))) Map.empty ~?= Just (ObjectType Map.empty),
+      S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", BoolType)]) ~?= Just BoolType,
+      S.evalState (synthesizeType (Var (Name "x"))) Map.empty ~?= Nothing,
+      S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
+      S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", UnionType [BoolType, NumberType])]) ~?= Just (UnionType [BoolType, NumberType]),
+      S.evalState (synthesizeType (Var (Name "x"))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Just (MaybeType NumberType),
+      S.evalState (synthesizeType (Var (Dot objectVar "x"))) Map.empty ~?= Just NumberType,
+      S.evalState (synthesizeType (Var (Dot objectVarLayered "y"))) Map.empty ~?= Just (ObjectType (Map.fromList [("z", NumberType)])),
+      S.evalState (synthesizeType (Var (Dot (Var (Dot objectVarLayered "y")) "z"))) Map.empty ~?= Just NumberType,
+      S.evalState (synthesizeType (Op1 Not (Val (BoolVal True)))) Map.empty ~?= Just BoolType,
+      S.evalState (synthesizeType (Op1 Neg (Val (BoolVal True)))) Map.empty ~?= Nothing,
+      S.evalState (synthesizeType (Op1 Neg (Val (NumberVal 1)))) Map.empty ~?= Just NumberType,
+      S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", NumberType)]) ~?= Just NumberType,
+      S.evalState (synthesizeType (Op1 Neg (Var (Name "x")))) (Map.fromList [("x", MaybeType NumberType)]) ~?= Nothing,
+      S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (NumberVal 2)))) Map.empty ~?= Just NumberType,
+      S.evalState (synthesizeType (Op2 (Val (NumberVal 1)) Plus (Val (BoolVal True)))) Map.empty ~?= Nothing,
+      S.evalState (synthesizeType (Call "f" [Val (NumberVal 1), Val (BoolVal True)])) (Map.fromList [("f", FunctionType [NumberType, BoolType] NumberType)]) ~?= Just NumberType
     ]
 
 testCheckStatement :: Test
 testCheckStatement =
-    TestList
-    [
-        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= [Success],
-        S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= [Failure]
+  TestList
+    [ S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) Map.empty ~?= [Success],
+      S.evalState (checkStatement (Assign (Name "x") (Val (BoolVal True)))) (Map.fromList [("x", NumberType)]) ~?= [Failure]
     ]
 
 testRunBlock :: Test
 testRunBlock =
-    TestList 
-    [ 
-        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "x") (Val (NumberVal 1))])) Map.empty ~?= ([Success, Failure], Map.fromList [("x", BoolType)]),
-        S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True))])) (Map.fromList [("x", NumberType)]) ~?= ([Failure], Map.fromList [("x", NumberType)]),
-        S.evalState (runBlock (
-            Block [Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))), 
-                   Assign (Name "x") (Val (NumberVal 1))])) Map.empty 
-            ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))]),
-        S.evalState (runBlock (
-            Block [Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))), 
-                   Assign (Dot (Var (Name "x")) "y") (Val (StringVal "str"))])) Map.empty 
-            ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))])
+  TestList
+    [ S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True)), Assign (Name "x") (Val (NumberVal 1))])) Map.empty ~?= ([Success, Failure], Map.fromList [("x", BoolType)]),
+      S.evalState (runBlock (Block [Assign (Name "x") (Val (BoolVal True))])) (Map.fromList [("x", NumberType)]) ~?= ([Failure], Map.fromList [("x", NumberType)]),
+      S.evalState
+        ( runBlock
+            ( Block
+                [ Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))),
+                  Assign (Name "x") (Val (NumberVal 1))
+                ]
+            )
+        )
+        Map.empty
+        ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))]),
+      S.evalState
+        ( runBlock
+            ( Block
+                [ Assign (Name "x") (Val (ObjectVal (Map.fromList [("y", NumberVal 1), ("z", StringVal "str")]))),
+                  Assign (Dot (Var (Name "x")) "y") (Val (StringVal "str"))
+                ]
+            )
+        )
+        Map.empty
+        ~?= ([Success, Failure], Map.fromList [("x", ObjectType (Map.fromList [("y", NumberType), ("z", StringType)]))])
     ]
+
 main :: IO ()
 main = do
   putStrLn "roundtrip_val"
   QC.quickCheck prop_roundtrip_val
   putStrLn "roundtrip_type"
   QC.quickCheck prop_roundtrip_type
---   putStrLn "roundtrip_exp"
---   QC.quickCheck prop_roundtrip_exp
+  --   putStrLn "roundtrip_exp"
+  --   QC.quickCheck prop_roundtrip_exp
   putStrLn "\n**typechecker qc tests**\n"
   typecheckerAllQC
   putStrLn "\n**unit tests**\n"
