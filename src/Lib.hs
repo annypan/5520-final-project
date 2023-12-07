@@ -3,6 +3,13 @@ import Syntax
 import PrettyPrinter
 import FlowParser
 import TypeChecker
+import Control.Monad (unless)
 
-someFunc :: String
-someFunc = "Hello CIS 5520"
+prompt :: IO ()
+prompt = do
+    putStrLn "Enter a filename or ':q' to quit"
+    l <- getLine
+    unless (l == ":q") $ do
+        res <- checker ("js/" ++ l)
+        print (filter (/= Success) (fst res))
+        prompt

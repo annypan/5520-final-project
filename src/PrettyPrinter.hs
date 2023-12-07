@@ -88,7 +88,13 @@ instance PP Statement where
     PP.text "for" <+> pp s1 <+> PP.text ";" <+> pp e1 <+> PP.text ";" <+> pp e2 <+> PP.text "do" <+> pp s2
   pp (Return e) = PP.text "return" <+> pp e
   pp (FunctionDef funcName funcType block) =
-    PP.text "function"
+    case funcType of
+      FunctionType args ret -> 
+        PP.text "function" <+> PP.text funcName <+> 
+        PP.parens (PP.hsep (PP.punctuate PP.comma (fmap ppa args))) <+> PP.text ":" <+> pp ret
+      _ -> undefined
+    where
+      ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
 
 instance PP Block where
   pp (Block [s]) = pp s

@@ -249,6 +249,7 @@ checkBlock (Block statements) = do
     results <- mapM checkStatement statements
     return (concat results)
 
+-- Checks if the return type of a block matches the expected type 
 checkReturnType :: Block -> Type -> State TypeDeclaration CheckResult
 checkReturnType (Block []) t = return (Failure "Empty block")
 checkReturnType (Block [s]) t = case s of
@@ -330,6 +331,7 @@ checkStatement st@(FunctionDef name t s) = case t of
         r <- checkBlock s
         return (Failure (pretty s) : r)
 
+-- Adds definitions for function arguments
 addDefForFunctionArgs :: [(Name, Type)] -> State TypeDeclaration ()
 addDefForFunctionArgs [] = return ()
 addDefForFunctionArgs ((name, t) : args) = do
