@@ -1,38 +1,35 @@
-# project-cis5520
+# Javascript Static Type Checker
 
-This is an "Empty project" for Haskell. It is configured in the same way as
-the lecture demo and homework assignments for CIS 5520, but contains no
-code. Feel free to use this repository for experimentation!
-
-If you want to change the name of this project, look for all occurrences of
-`project-cis5520` in the `project-cis5520.cabal` file and in the `hie.yaml` 
-file. (And change the name of the cabal file to match your new name!)
+Project members: Chenxi Leng (lengch), Anni Pan (annipan).
 
 ## Module organization
 
-Haskell packages typically divide their source code into three separate places:
+Our project consists of two main parts: the JS flow parser and the typechecker. The parser consumes type-annotated JS program and produces an AST, which is then fed
+into the typechecker to check for type errors.
 
-  - The bulk of your code should be developed as a reusable library in 
-    modules in the `src` directory. We've created [Lib.hs](src/Lib.hs) 
-    for you to get started. You can add additional modules here.
-  
-  - The entry point for your executable is in [Main.hs](app/Main.hs). 
-  
-  - All of your test cases should be in [the test directory](test/Spec.hs).
+**Syntax.hs**: Defines the AST syntax that the JS programs are expected to translate into.
+
+**Parser.hs**:
+
+**FlowParser.hs**:
+
+**State.hs**: Taken from the lecture on states; a generic state transformer.
+
+**TypeChecker.hs**: Contains all the logic for typechecking an AST.
+
+**PrettyPrinter.hs**: Describes how to pretty print different components of the AST.
+
+**ASTExamples.hs**: Hardcodes some ASTs that are compared against the AST generated from the parser to check its correctness.
+
+**Spec.hs**: Unit tests and property-based QC tests for the parser and the typechecker.
+
+**Lib.hs**: Contains a prompt loop that keeps prompting the user for the name of the file to typecheck, and returns the user the check results.
 
 ## Building, running, and testing
 
 This project compiles with `stack build`. 
-You can run the main executable with `stack run`.
+
+You can run the main executable with `stack run`. To typecheck a JS file, simply put it into the `js/` directory, and enter its name  (including the `.js` suffix) in the prompt.
 You can run the tests with `stack test`. 
 
 Finally, you can start a REPL with `stack ghci`.
-
-## Importing additional libraries
-
-This project is designed to run with stackage: you can easily use any library
-in https://www.stackage.org/lts-21.6 by adding an entry to the
-`build-depends` list of the `common-stanza` in the cabal file. If you want to
-use a library that is not on stackage, you'll need to update the common-stanza
-*and* add information to `stack.yaml` about where to find that library.
-
