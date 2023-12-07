@@ -20,6 +20,7 @@ data Statement
   | For Statement Expression Statement Block -- for (s1; e1; e2) {s2}
   | Return Expression -- return e
   | FunctionDef FuncName Type Block -- function f(x1, ..., xn) s -- should actually be functype
+  | FunctionCall FuncName [Expression] -- f(e1, ..., en)
   deriving (Eq, Show)
 
 data Var

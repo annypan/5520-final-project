@@ -13,10 +13,6 @@ import Test.HUnit
 import Test.QuickCheck qualified as QC
 import TypeChecker
 
-isNotFuncType :: Type -> Bool
-isNotFuncType (FunctionType _ _) = False
-isNotFuncType _ = True
-
 -- QC properties
 prop_roundtrip_val :: Value -> Bool
 prop_roundtrip_val v = P.parse valueP (pretty v) == Right v

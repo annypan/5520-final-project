@@ -41,6 +41,7 @@ statementP =
     P.<|> forP
     P.<|> returnP
     P.<|> functionDefP
+    P.<|> functionCallP
 
 -- | Parsing Constants
 valueP :: Parser Value
@@ -247,7 +248,7 @@ bopP =
     )
 
 -- | Parser for primitive types
--- >>> P.parse (P.many primitivetypeP) "boolean \n string number null undefined empty any"
+-- >>> P.parse (P.many primitivetypeP) "boolean \n string number null void empty any"
 -- Right [BoolType,StringType,NumberType,NullType,UndefinedType,EmptyType,AnyType]
 primitivetypeP :: Parser Type
 primitivetypeP =
@@ -256,7 +257,7 @@ primitivetypeP =
         P.<|> constP "string" StringType
         P.<|> constP "number" NumberType
         P.<|> constP "null" NullType
-        P.<|> constP "undefined" UndefinedType
+        P.<|> constP "void" UndefinedType
         P.<|> constP "empty" EmptyType
         P.<|> constP "any" AnyType
     )
@@ -402,6 +403,12 @@ functionDefP =
     <$> (stringP "function" *> funcNameP)
     <*> functiontypeP
     <*> braces blockP
+
+functionCallP :: Parser Statement
+functionCallP = FunctionCall <$> funcNameP <*> parens (P.sepBy expP (wsP (P.char ',')))
+
+-- >>> P.parse functionCallP "f(1, 2)"
+-- Right (FunctionCall "f" [Val (NumberVal 1),Val (NumberVal 2)])
 
 -- Parses blocks separated by semicolons
 blockP :: Parser Block

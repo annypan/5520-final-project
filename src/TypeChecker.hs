@@ -330,6 +330,20 @@ checkStatement st@(FunctionDef name t s) = case t of
     _ -> do
         r <- checkBlock s
         return (Failure (pretty s) : r)
+checkStatement st@(FunctionCall name es) = do
+    store <- S.get
+    case store !? name of
+        Just (FunctionType args ret) -> do
+            ts <- mapM synthesizeType es
+            let sanitizedTs = getValidTypeList ts
+            case sanitizedTs of
+                Just sanitizedTs' ->
+                    return (
+                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs')
+                        then [Success]
+                        else [Failure (pretty st)])
+                Nothing -> return [Failure (pretty st)]
+        _ -> return [Failure (pretty st)]
 
 -- Adds definitions for function arguments
 addDefForFunctionArgs :: [(Name, Type)] -> State TypeDeclaration ()

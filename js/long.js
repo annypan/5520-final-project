@@ -13,3 +13,12 @@ if (x1 + x2 == 5) {
 } else {
     x1 = false;
 }
+
+g(1, 3);
+g(x1, x2);
+
+function h(q: string) : void {
+    return undefined;
+}
+
+g(h("hello"), h("world"))

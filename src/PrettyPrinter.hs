@@ -65,7 +65,7 @@ instance PP Type where
   pp StringType = PP.text "string"
   pp NumberType = PP.text "number"
   pp NullType = PP.text "null"
-  pp UndefinedType = PP.text "undefined"
+  pp UndefinedType = PP.text "void"
   pp EmptyType = PP.text "empty"
   pp AnyType = PP.text "any"
   pp (ObjectType tm) = PP.braces (PP.hsep (PP.punctuate PP.comma (fmap ppa (Map.toList tm))))
@@ -95,6 +95,7 @@ instance PP Statement where
       _ -> undefined
     where
       ppa (n, t) = PP.text n <+> PP.text ":" <+> pp t
+  pp (FunctionCall funcName args) = PP.text funcName <> PP.parens (PP.hsep (PP.punctuate PP.comma (fmap pp args)))
 
 instance PP Block where
   pp (Block [s]) = pp s
