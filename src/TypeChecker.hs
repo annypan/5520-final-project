@@ -229,7 +229,7 @@ synthesizeType (Call fn es) = do
             case sanitizedTs of
                 Just sanitizedTs' ->
                     return (
-                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs')
+                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs') && length args == length sanitizedTs'
                         then Just ret
                         else Nothing)
                 Nothing -> return Nothing
@@ -339,7 +339,7 @@ checkStatement st@(FunctionCall name es) = do
             case sanitizedTs of
                 Just sanitizedTs' ->
                     return (
-                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs')
+                        if all (\((_, t), t') -> canBeUsedAsType t t') (zip args sanitizedTs') && length args == length sanitizedTs'
                         then [Success]
                         else [Failure (pretty st)])
                 Nothing -> return [Failure (pretty st)]

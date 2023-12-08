@@ -7,6 +7,6 @@ function g(z: number, w: number): number {
 function h(h: string): string {
     return g(3, 4);
 }
-function wrong_args(str: string): string {
+function wrong_args(str: string): number {
     return g(1, 2, 3);
 }

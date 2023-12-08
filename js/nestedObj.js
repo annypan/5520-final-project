@@ -9,3 +9,9 @@ if (x.z + x.w.a > 0) {
 while (x.w.b < 10) {
     x.w.b = x.w.b + 1;
 }
+
+function foo(i: number, j: string): number{
+    return i + j;
+}
+
+foo(x.w.a, x.w.b);
