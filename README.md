@@ -4,14 +4,13 @@ Project members: Chenxi Leng (lengch), Anni Pan (annipan).
 
 ## Module organization
 
-Our project consists of two main parts: the JS flow parser and the typechecker. The parser consumes type-annotated JS program and produces an AST, which is then fed
-into the typechecker to check for type errors.
+Our project consists of two main parts: the JS flow parser and the typechecker. The parser consumes type-annotated JS program and produces an AST, which is then fed into the typechecker to check for type errors.
 
 **Syntax.hs**: Defines the AST syntax that the JS programs are expected to translate into.
 
-**Parser.hs**:
+**Parser.hs**: Taken from the lecture on parser; parsing with applicative functors.
 
-**FlowParser.hs**:
+**FlowParser.hs**: Translates a type-annotated JS program into an AST with defined syntax.
 
 **State.hs**: Taken from the lecture on states; a generic state transformer.
 
